@@ -1,4 +1,5 @@
 using Carrot.Cli.Cli.UI;
+using Carrot.Cli.CarrotApi;
 using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.Extraction;
@@ -40,7 +41,9 @@ public sealed class ProcessDocumentsMenuTests
             console.Input.PushKey(ConsoleKey.Escape);
             pushDownKeys(console, 1);
             console.Input.PushKey(ConsoleKey.Enter);
-            pushDownKeys(console, 4);
+            pushDownKeys(console, 2);
+            console.Input.PushKey(ConsoleKey.Enter);
+            pushDownKeys(console, 5);
             console.Input.PushKey(ConsoleKey.Enter);
             console.Input.PushTextWithEnter("y");
 
@@ -51,6 +54,10 @@ public sealed class ProcessDocumentsMenuTests
             var request = Assert.Single(workflow.Requests);
             Assert.Equal(Path.GetFullPath(inputPath), Assert.Single(request.InputPaths));
             Assert.Contains("Prepared Results", console.Output, StringComparison.Ordinal);
+            Assert.Contains("Preview JSON Package", console.Output, StringComparison.Ordinal);
+            Assert.Contains("\"language\": \"English\"", console.Output, StringComparison.Ordinal);
+            Assert.Contains("\"content\": \"Preview content 1\"", console.Output, StringComparison.Ordinal);
+            Assert.Contains("no server request was sent", console.Output, StringComparison.Ordinal);
             Assert.Contains("Process Prepared Items", console.Output, StringComparison.Ordinal);
             Assert.Contains("1 prepared document(s) are ready", console.Output, StringComparison.Ordinal);
             Assert.Contains("pending implementation", console.Output, StringComparison.OrdinalIgnoreCase);
@@ -92,6 +99,33 @@ public sealed class ProcessDocumentsMenuTests
     }
 
     /**************************************************************/
+    /// <summary>Verifies Enter continues forward when both Next Page and Previous Page are available.</summary>
+    [Fact]
+    public async Task ShowAsync_MiddlePage_UsesNextPageAsDefaultChoice()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = createConsole();
+        var pager = new PreparedResultsPager(
+            console,
+            Options.Create(new CarrotCliOptions { PreparedResultsPageSize = 5 }));
+        var result = createReadyResult("C:\\Inputs\\document.txt", 11);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Escape);
+
+        // Act
+        await pager.ShowAsync(result, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains("Page 2/3", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Page 3/3", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Creates Process Documents with real prompt validation and a controlled preparation boundary.</summary>
     private static ProcessDocumentsMenu createMenu(
         TestConsole console,
@@ -118,7 +152,8 @@ public sealed class ProcessDocumentsMenuTests
             new InputPathNormalizer(),
             resolver,
             workflow,
-            new PreparedResultsPager(console, options));
+            new PreparedResultsPager(console, options),
+            new PreparedJsonPackageRenderer(console, new ClusterRequestFactory(options)));
 
         #endregion
     }

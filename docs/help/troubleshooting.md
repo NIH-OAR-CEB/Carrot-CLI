@@ -9,5 +9,5 @@
 - **Preview or Server Information says Pending Implementation:** those interactive routes intentionally remain deferred.
 - **Missing endpoint:** future named commands will require `--endpoint` or `CARROTCLI_ENDPOINT`.
 - **Scanned PDF:** OCR is not included; provide a searchable text layer.
-- **Content appears in the terminal:** prepared rows intentionally show a short extracted-text preview; see Privacy before handling sensitive content.
+- **Content appears in the terminal:** prepared rows intentionally show a short extracted-text preview, while Preview JSON Package intentionally shows complete ready-document content; see Privacy before handling sensitive content.
 - **Scheduled task has no output:** configure **Start in**, quote paths, and provide `--log-file` when operational commands are implemented.

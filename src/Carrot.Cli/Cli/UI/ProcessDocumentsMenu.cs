@@ -10,6 +10,7 @@ namespace Carrot.Cli.Cli.UI;
 /// <remarks>
 /// This menu intentionally stops at the process boundary. The pending process action reports the
 /// count of exact prepared documents but does not resolve HTTP, clustering, or reporting services.
+/// The JSON preview serializes the future request locally without sending or persisting it.
 /// </remarks>
 internal sealed class ProcessDocumentsMenu
 {
@@ -21,6 +22,7 @@ internal sealed class ProcessDocumentsMenu
     private readonly InputSourceResolver _inputResolver;
     private readonly IDocumentPreparationWorkflow _preparationWorkflow;
     private readonly PreparedResultsPager _pager;
+    private readonly PreparedJsonPackageRenderer _jsonPackageRenderer;
 
     /**************************************************************/
     /// <summary>Defines actions available while assembling an ordered input-path list.</summary>
@@ -54,6 +56,14 @@ internal sealed class ProcessDocumentsMenu
         /**************************************************************/
         /// <summary>Reopens the prepared-results pager.</summary>
         ViewResults,
+
+        /**************************************************************/
+        /// <summary>Displays the complete JSON request package for ready documents.</summary>
+        PreviewJson,
+
+        /**************************************************************/
+        /// <summary>Explains why JSON preview is unavailable when no rows are ready.</summary>
+        PreviewJsonUnavailable,
 
         /**************************************************************/
         /// <summary>Displays the pending process handoff for ready documents.</summary>
@@ -97,7 +107,8 @@ internal sealed class ProcessDocumentsMenu
         InputPathNormalizer pathNormalizer,
         InputSourceResolver inputResolver,
         IDocumentPreparationWorkflow preparationWorkflow,
-        PreparedResultsPager pager)
+        PreparedResultsPager pager,
+        PreparedJsonPackageRenderer jsonPackageRenderer)
     {
         #region implementation
 
@@ -107,12 +118,14 @@ internal sealed class ProcessDocumentsMenu
         ArgumentNullException.ThrowIfNull(inputResolver);
         ArgumentNullException.ThrowIfNull(preparationWorkflow);
         ArgumentNullException.ThrowIfNull(pager);
+        ArgumentNullException.ThrowIfNull(jsonPackageRenderer);
         _console = console;
         _helpRenderer = helpRenderer;
         _pathNormalizer = pathNormalizer;
         _inputResolver = inputResolver;
         _preparationWorkflow = preparationWorkflow;
         _pager = pager;
+        _jsonPackageRenderer = jsonPackageRenderer;
 
         #endregion
     }
@@ -310,12 +323,17 @@ internal sealed class ProcessDocumentsMenu
             var processChoice = batch.Documents.Count > 0
                 ? BatchChoice.Process
                 : BatchChoice.ProcessUnavailable;
+            var previewChoice = batch.Documents.Count > 0
+                ? BatchChoice.PreviewJson
+                : BatchChoice.PreviewJsonUnavailable;
             var selected = await new SelectionPrompt<BatchChoice>()
                 .Title("[bold orange1]Prepared Batch Actions[/]")
                 .HighlightStyle(new Style(Color.Black, Color.Orange1))
                 .UseConverter(choice => choice switch
                 {
                     BatchChoice.ViewResults => "View Prepared Results",
+                    BatchChoice.PreviewJson => $"Preview JSON Package ({batch.Documents.Count:N0} document(s))",
+                    BatchChoice.PreviewJsonUnavailable => "Preview JSON Package (unavailable — 0 ready)",
                     BatchChoice.Process => $"Process Prepared Items ({batch.Documents.Count:N0} ready)",
                     BatchChoice.ProcessUnavailable => "Process Prepared Items (unavailable — 0 ready)",
                     BatchChoice.StartOver => "Start Over",
@@ -325,6 +343,7 @@ internal sealed class ProcessDocumentsMenu
                 })
                 .AddChoices(
                     BatchChoice.ViewResults,
+                    previewChoice,
                     processChoice,
                     BatchChoice.StartOver,
                     BatchChoice.Help,
@@ -337,6 +356,12 @@ internal sealed class ProcessDocumentsMenu
             {
                 case BatchChoice.ViewResults:
                     await _pager.ShowAsync(result, cancellationToken).ConfigureAwait(false);
+                    break;
+                case BatchChoice.PreviewJson:
+                    _jsonPackageRenderer.Render(batch);
+                    break;
+                case BatchChoice.PreviewJsonUnavailable:
+                    _console.MarkupLine("[yellow]No successfully prepared documents are available to preview.[/]");
                     break;
                 case BatchChoice.Process:
                     renderPendingProcess(batch.Documents.Count);

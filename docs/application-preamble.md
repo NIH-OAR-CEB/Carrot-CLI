@@ -28,6 +28,7 @@ Carrot CLI is a guided Windows command-line client for preparing documents for t
 1. Select **Process Documents** and add one or more individual files, folders, or ZIP archives.
 2. Select **Prepare Documents**, then review successful and failed rows five at a time.
 3. Press **Escape** to leave paging and use the retained Batch Actions.
-4. Select **Help** from any menu for quoted-path, format, extraction, and privacy guidance.
+4. Select **Preview JSON Package** to inspect the complete local request without sending or saving it.
+5. Select **Help** from any menu for quoted-path, format, extraction, and privacy guidance.
 
 **Process Prepared Items** reports how many extracted documents are ready, but Carrot submission and report output remain pending. Preview Request and Server Information also remain deferred.

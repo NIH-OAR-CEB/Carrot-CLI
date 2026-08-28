@@ -24,7 +24,7 @@ Within **Process Documents**, select **Add Path** once for each input. Paths may
 C:\Data\single-report.pdf
 ```
 
-Before preparation, queued paths can be removed and folder recursion can be enabled. Preparation retains the first occurrence of duplicate sources, safely expands ZIPs, hashes and extracts valid documents, and keeps file-level failures visible. Results are shown five rows at a time with status, source, size, extracted character count, a short content preview, and any error. Press **Escape** from the pager to return to Batch Actions. **Process Prepared Items** reports how many documents are ready but does not yet contact Carrot or create artifacts.
+Before preparation, queued paths can be removed and folder recursion can be enabled. Preparation retains the first occurrence of duplicate sources, safely expands ZIPs, hashes and extracts valid documents, and keeps file-level failures visible. Results are shown five rows at a time with status, source, size, extracted character count, a short content preview, and any error. Press **Escape** from the pager to return to Batch Actions. **Preview JSON Package** displays the exact indented `/cluster` body locally, including the configured language and algorithm plus every ready document's full title and content. It excludes client-only paths and hashes, sends nothing, and writes no file. **Process Prepared Items** reports how many documents are ready but does not yet contact Carrot or create artifacts.
 
 The preamble source is [`docs/application-preamble.md`](docs/application-preamble.md). Builds and publishes place it at `Content/application-preamble.md` beside the application. Administrators can edit that deployed Markdown file and the next launch will display the revised text without rebuilding.
 
@@ -34,7 +34,7 @@ The preamble source is [`docs/application-preamble.md`](docs/application-preambl
 
 ```text
 Main Menu
-|- Process Documents -> Add/Remove Paths -> Prepare -> Review Pages -> Batch Actions
+|- Process Documents -> Add/Remove Paths -> Prepare -> Review Pages -> JSON Preview / Batch Actions
 |- Preview Request -> Execute | Help | Back
 |- Server Information -> Execute | Help | Back
 |- Help
@@ -46,7 +46,7 @@ Available help topics are getting started, process, preview, server information,
 
 ## Supported input and planned artifacts
 
-Interactive preparation accepts individual files, folders, and ZIP archives containing `.docx`, `.xlsx`, `.pptx`, `.txt`, `.md`, and searchable `.pdf` files. Each successfully prepared source becomes one in-memory Carrot document; corrupt, encrypted, image-only, unreadable, and empty documents remain visible as failed rows. No preparation artifact is written. A later milestone will submit the retained documents and write the planned Excel, JSON, and log artifacts.
+Interactive preparation accepts individual files, folders, and ZIP archives containing `.docx`, `.xlsx`, `.pptx`, `.txt`, `.md`, and searchable `.pdf` files. Each successfully prepared source becomes one in-memory Carrot document; corrupt, encrypted, image-only, unreadable, and empty documents remain visible as failed rows. JSON package preview writes the complete request to terminal scrollback only; no preparation artifact is written. A later milestone will submit the retained documents and write the planned Excel, JSON, and log artifacts.
 
 See [CLI reference](docs/cli-reference.md), [extraction rules](docs/extraction-rules.md), [output format](docs/output-format.md), [Task Scheduler guidance](docs/task-scheduler.md), and [troubleshooting](docs/troubleshooting.md).
 

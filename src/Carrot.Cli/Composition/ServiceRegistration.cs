@@ -1,4 +1,5 @@
 using Carrot.Cli.Cli.UI;
+using Carrot.Cli.CarrotApi;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.Common;
 using Carrot.Cli.Extraction;
@@ -59,6 +60,7 @@ internal static class ServiceRegistration
         services.AddSingleton<IDocumentTextExtractor, PdfDocumentExtractor>();
         services.AddSingleton<DocumentExtractionCoordinator>();
         services.AddSingleton<IDocumentPreparationWorkflow, DocumentPreparationWorkflow>();
+        services.AddSingleton<ClusterRequestFactory>();
 
         services.AddSingleton<HelpTopicCatalog>();
         services.AddSingleton<IHelpContentProvider, EmbeddedHelpContentProvider>();
@@ -68,6 +70,7 @@ internal static class ServiceRegistration
         services.AddTransient<HelpRenderer>();
         services.AddTransient<AboutRenderer>();
         services.AddTransient<PreparedResultsPager>();
+        services.AddTransient<PreparedJsonPackageRenderer>();
         services.AddTransient<ProcessDocumentsMenu>();
         services.AddTransient<InteractiveMenu>();
 

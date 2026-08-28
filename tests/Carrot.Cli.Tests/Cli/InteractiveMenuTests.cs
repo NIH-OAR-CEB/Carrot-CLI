@@ -1,4 +1,5 @@
 using Carrot.Cli.Cli.UI;
+using Carrot.Cli.CarrotApi;
 using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.Input;
@@ -261,7 +262,8 @@ public sealed class InteractiveMenuTests
             pathNormalizer,
             resolver,
             new StubDocumentPreparationWorkflow(),
-            pager);
+            pager,
+            new PreparedJsonPackageRenderer(console, new ClusterRequestFactory(options)));
         return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer, processDocumentsMenu);
 
         #endregion

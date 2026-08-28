@@ -11,6 +11,7 @@ namespace Carrot.Cli.Cli.UI;
 /// <remarks>
 /// The pager never mutates or disposes a prepared batch. Escape and the explicit Back action both
 /// return control to the owning batch-action menu while keeping extracted documents in memory.
+/// When another page is available, Next Page is listed first and is therefore the default action.
 /// </remarks>
 internal sealed class PreparedResultsPager
 {
@@ -75,14 +76,15 @@ internal sealed class PreparedResultsPager
         {
             renderPage(result, pageIndex, pageCount);
             var choices = new List<PageChoice>();
-            if (pageIndex > 0)
-            {
-                choices.Add(PageChoice.Previous);
-            }
-
+            // Spectre selects the first choice by default, so place forward navigation first.
             if (pageIndex + 1 < pageCount)
             {
                 choices.Add(PageChoice.Next);
+            }
+
+            if (pageIndex > 0)
+            {
+                choices.Add(PageChoice.Previous);
             }
 
             choices.Add(PageChoice.Back);
