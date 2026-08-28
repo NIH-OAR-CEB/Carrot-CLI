@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Spectre.Console.Cli.Testing" />
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>

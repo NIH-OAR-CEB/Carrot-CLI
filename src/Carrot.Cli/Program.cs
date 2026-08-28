@@ -1,3 +1,7 @@
+using Carrot.Cli.Cli;
+using Carrot.Cli.Composition;
+using Microsoft.Extensions.Hosting;
+
 namespace Carrot.Cli;
 
 /**************************************************************/
@@ -5,8 +9,8 @@ namespace Carrot.Cli;
 /// Provides the process entry point for the Carrot command-line application.
 /// </summary>
 /// <remarks>
-/// The future implementation will create the Generic Host, configure logging and
-/// dependency injection, build the Spectre command application, and dispatch arguments.
+/// Creates the Generic Host service collection, configures dependency injection, builds
+/// the Spectre command application, and dispatches interactive or named command arguments.
 /// </remarks>
 /// <seealso cref="Composition.ServiceRegistration"/>
 /// <seealso cref="Cli.CommandAppFactory"/>
@@ -20,13 +24,17 @@ public static class Program
     /// </summary>
     /// <param name="args">The raw command-line arguments supplied by the operating system.</param>
     /// <returns>A task whose result is one of the documented process exit codes.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     /// <seealso cref="Processing.ExitCodes"/>
-    public static Task<int> Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        var builder = Host.CreateApplicationBuilder(args);
+        builder.Services.AddCarrotCli(builder.Configuration);
+
+        // Spectre owns construction and disposal of the service provider through its registrar.
+        var application = new CommandAppFactory().Create(builder.Services);
+        return await application.RunAsync(args).ConfigureAwait(false);
 
         #endregion
     }

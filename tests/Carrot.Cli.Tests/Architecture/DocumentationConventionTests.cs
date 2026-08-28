@@ -4,7 +4,7 @@ namespace Carrot.Cli.Tests.Architecture;
 
 /**************************************************************/
 /// <summary>
-/// Reserves future architecture checks for the scaffold's documentation and stub-only conventions.
+/// Reserves future architecture checks for documentation and implemented-versus-deferred boundaries.
 /// </summary>
 public sealed class DocumentationConventionTests
 {
@@ -23,9 +23,9 @@ public sealed class DocumentationConventionTests
     }
 
     /**************************************************************/
-    /// <summary>Verifies separator headers, XML summaries, implementation regions, and stub method bodies.</summary>
-    [Fact(Skip = "Future architecture acceptance: source convention scanning is layout-only.")]
-    public void ProductionSourceFollowsDocumentationAndStubOnlyRules()
+    /// <summary>Verifies separator headers, XML summaries, implementation regions, and deferred stub boundaries.</summary>
+    [Fact(Skip = "Future architecture acceptance: source convention scanning is not implemented.")]
+    public void ProductionSourceFollowsDocumentationAndDeferredStubRules()
     {
         #region implementation
 

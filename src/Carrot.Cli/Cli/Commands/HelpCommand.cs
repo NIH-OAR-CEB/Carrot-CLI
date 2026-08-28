@@ -1,3 +1,4 @@
+using Carrot.Cli.Processing;
 using Carrot.Cli.Cli.UI;
 using Spectre.Console.Cli;
 
@@ -11,6 +12,8 @@ namespace Carrot.Cli.Cli.Commands;
 internal sealed class HelpCommand : AsyncCommand<HelpCommand.HelpSettings>
 {
     #region implementation
+
+    private readonly HelpRenderer _renderer;
 
     /**************************************************************/
     /// <summary>
@@ -35,12 +38,12 @@ internal sealed class HelpCommand : AsyncCommand<HelpCommand.HelpSettings>
     /// Initializes the command with its help renderer.
     /// </summary>
     /// <param name="renderer">The renderer for curated help topics.</param>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
-    internal HelpCommand(HelpRenderer renderer)
+    public HelpCommand(HelpRenderer renderer)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        ArgumentNullException.ThrowIfNull(renderer);
+        _renderer = renderer;
 
         #endregion
     }
@@ -53,12 +56,12 @@ internal sealed class HelpCommand : AsyncCommand<HelpCommand.HelpSettings>
     /// <param name="settings">The optional topic selection.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
     /// <returns>A task containing the help command exit code.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     protected override Task<int> ExecuteAsync(CommandContext context, HelpSettings settings, CancellationToken cancellationToken)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        var rendered = _renderer.Render(settings.Topic);
+        return Task.FromResult(rendered ? ExitCodes.Success : ExitCodes.InvalidConfiguration);
 
         #endregion
     }

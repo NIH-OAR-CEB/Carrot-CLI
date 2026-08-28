@@ -25,6 +25,18 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\help\*.md">
+      <LogicalName>Carrot.Cli.Help.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\docs\application-preamble.md">
+      <Link>Content\application-preamble.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Carrot.Cli.Tests" />
   </ItemGroup>
 </Project>

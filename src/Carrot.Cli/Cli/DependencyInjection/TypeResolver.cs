@@ -11,17 +11,19 @@ internal sealed class TypeResolver : ITypeResolver
 {
     #region implementation
 
+    private readonly IServiceProvider _provider;
+
     /**************************************************************/
     /// <summary>
     /// Initializes the resolver with the completed application service provider.
     /// </summary>
     /// <param name="provider">The provider used for command dependency resolution.</param>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     internal TypeResolver(IServiceProvider provider)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        ArgumentNullException.ThrowIfNull(provider);
+        _provider = provider;
 
         #endregion
     }
@@ -32,12 +34,11 @@ internal sealed class TypeResolver : ITypeResolver
     /// </summary>
     /// <param name="type">The type Spectre requests, or <see langword="null"/>.</param>
     /// <returns>The resolved instance, or <see langword="null"/> when no type was requested.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     public object? Resolve(Type? type)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        return type is null ? null : _provider.GetService(type);
 
         #endregion
     }
@@ -46,12 +47,14 @@ internal sealed class TypeResolver : ITypeResolver
     /// <summary>
     /// Releases provider-owned command resources after dispatch completes.
     /// </summary>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     public void Dispose()
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        if (_provider is IDisposable disposableProvider)
+        {
+            disposableProvider.Dispose();
+        }
 
         #endregion
     }

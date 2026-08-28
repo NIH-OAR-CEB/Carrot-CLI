@@ -1,6 +1,6 @@
 # Carrot CLI
 
-Carrot CLI is a layout-only .NET 10 scaffold for a future Windows command-line client compatible with the Carrot 4.8.6 Document Clustering Server API. The scaffold defines commands, contracts, processing seams, extraction strategies, reporting boundaries, configuration, and future acceptance tests. Operational methods intentionally throw `NotImplementedException` and do not read documents, contact a server, serialize artifacts, or create workbooks.
+Carrot CLI is a .NET 10 command-line client scaffold for a future Windows client compatible with the Carrot 4.8.6 Document Clustering Server API. Its initial Spectre.Console UI is runnable: no arguments open selectable menus, every workflow menu includes Markdown-backed help, and Help and About are also available as named commands. Document discovery, extraction, server calls, and report generation remain explicit operational stubs.
 
 ## Planned commands
 
@@ -14,7 +14,25 @@ carrot-cli about
 carrot-cli --version
 ```
 
-No-argument execution is reserved for an interactive menu. `process`, `preview`, and `server-info` are noninteractive for Task Scheduler use. Interactive sessions will request an endpoint every time and will not persist it. Noninteractive endpoint resolution is planned as `--endpoint`, then `CARROTCLI_ENDPOINT`.
+No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. Process Documents, Preview Request, and Server Information each open a submenu containing Execute, Help, and Back. Execute currently displays `Pending Implementation` without invoking an operational stub. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory.
+
+The preamble source is [`docs/application-preamble.md`](docs/application-preamble.md). Builds and publishes place it at `Content/application-preamble.md` beside the application. Administrators can edit that deployed Markdown file and the next launch will display the revised text without rebuilding.
+
+`process`, `preview`, and `server-info` remain deferred noninteractive routes intended for future Task Scheduler use. Interactive endpoint prompts and noninteractive endpoint resolution are not part of this UI milestone.
+
+## Interactive menu
+
+```text
+Main Menu
+|- Process Documents -> Execute | Help | Back
+|- Preview Request -> Execute | Help | Back
+|- Server Information -> Execute | Help | Back
+|- Help
+|- About
+`- Exit
+```
+
+Available help topics are getting started, process, preview, server information, commands/options, supported formats, extraction rules, clustering settings, output columns, Task Scheduler, exit codes, privacy, and troubleshooting.
 
 ## Supported input and planned artifacts
 
@@ -30,4 +48,4 @@ dotnet build .\Carrot-CLI.slnx --no-restore
 dotnet test .\Carrot-CLI.slnx --no-build --no-restore
 ```
 
-This phase verifies the layout only. Every future operational test is explicitly skipped and names the behavior it will eventually protect.
+The active test suite verifies command metadata, preamble loading and placement, interactive navigation, pending workflow behavior, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Future operational acceptance tests remain explicitly skipped and name the behavior they will eventually protect.

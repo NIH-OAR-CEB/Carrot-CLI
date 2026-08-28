@@ -12,17 +12,19 @@ internal sealed class InteractiveCommand : AsyncCommand
 {
     #region implementation
 
+    private readonly InteractiveMenu _menu;
+
     /**************************************************************/
     /// <summary>
     /// Initializes the command with its interactive menu coordinator.
     /// </summary>
     /// <param name="menu">The prompt and menu orchestration boundary.</param>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
-    internal InteractiveCommand(InteractiveMenu menu)
+    public InteractiveCommand(InteractiveMenu menu)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        ArgumentNullException.ThrowIfNull(menu);
+        _menu = menu;
 
         #endregion
     }
@@ -34,12 +36,11 @@ internal sealed class InteractiveCommand : AsyncCommand
     /// <param name="context">The Spectre command execution context.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
     /// <returns>A task containing the process exit code.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     protected override Task<int> ExecuteAsync(CommandContext context, CancellationToken cancellationToken)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        return _menu.RunAsync(cancellationToken);
 
         #endregion
     }
