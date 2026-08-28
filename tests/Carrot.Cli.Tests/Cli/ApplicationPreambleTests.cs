@@ -14,6 +14,36 @@ public sealed class ApplicationPreambleTests
 
     /**************************************************************/
     /// <summary>
+    /// Verifies the deployed preamble renders its colored artwork before the welcome heading.
+    /// </summary>
+    [Fact]
+    public void Render_DeployedPreamble_DisplaysArtworkBeforeWelcome()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = new TestConsole();
+        console.Profile.Width = 160;
+        var renderer = new ApplicationPreambleRenderer(
+            console,
+            new FileApplicationPreambleProvider(),
+            new MarkdownHelpRenderer(console));
+
+        // Act
+        renderer.Render();
+
+        // Assert
+        var artworkIndex = console.Output.IndexOf('⌐');
+        var welcomeIndex = console.Output.IndexOf("Welcome to Carrot CLI", StringComparison.Ordinal);
+        Assert.True(artworkIndex >= 0, "The deployed Carrot artwork was not rendered.");
+        Assert.True(welcomeIndex > artworkIndex, "The artwork must precede the welcome heading.");
+        Assert.DoesNotContain("[color=", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
     /// Verifies an existing provider observes file edits instead of retaining compiled or cached content.
     /// </summary>
     [Fact]

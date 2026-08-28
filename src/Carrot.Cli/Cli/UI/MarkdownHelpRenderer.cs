@@ -30,6 +30,10 @@ internal sealed class MarkdownHelpRenderer
         @"(`[^`\r\n]+`|\*\*[^*\r\n]+\*\*|(?<!\*)\*[^*\r\n]+\*(?!\*)|\[[^\]\r\n]+\]\([^\)\r\n]+\))",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    private static readonly Regex ArtworkColorPattern = new(
+        @"\[color=(?<color>#[0-9a-fA-F]{6})\](?<content>.*?)\[/color\]",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private readonly IAnsiConsole _console;
 
     /**************************************************************/
@@ -62,6 +66,7 @@ internal sealed class MarkdownHelpRenderer
         var paragraphLines = new List<string>();
         var codeLines = new List<string>();
         var inCodeFence = false;
+        var isArtworkFence = false;
 
         using var reader = new StringReader(markdown.ReplaceLineEndings("\n"));
         while (reader.ReadLine() is { } line)
@@ -72,8 +77,23 @@ internal sealed class MarkdownHelpRenderer
 
                 if (inCodeFence)
                 {
-                    renderCodeBlock(codeLines);
+                    if (isArtworkFence)
+                    {
+                        renderArtwork(codeLines);
+                    }
+                    else
+                    {
+                        renderCodeBlock(codeLines);
+                    }
+
                     codeLines.Clear();
+                }
+                else
+                {
+                    isArtworkFence = string.Equals(
+                        line.Trim(),
+                        "```carrot-art",
+                        StringComparison.OrdinalIgnoreCase);
                 }
 
                 inCodeFence = !inCodeFence;
@@ -107,7 +127,14 @@ internal sealed class MarkdownHelpRenderer
         if (codeLines.Count > 0)
         {
             // An unterminated fence remains useful help text and should not crash rendering.
-            renderCodeBlock(codeLines);
+            if (isArtworkFence)
+            {
+                renderArtwork(codeLines);
+            }
+            else
+            {
+                renderCodeBlock(codeLines);
+            }
         }
 
         #endregion
@@ -237,6 +264,44 @@ internal sealed class MarkdownHelpRenderer
             .Header("[grey]Example[/]")
             .Border(BoxBorder.Rounded)
             .BorderStyle("grey"));
+        _console.WriteLine();
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Displays terminal artwork while interpreting only six-digit BBCode color tags.
+    /// </summary>
+    /// <remarks>
+    /// The restricted parser preserves authored spacing and Unicode glyphs without allowing
+    /// arbitrary Spectre markup from the externally editable preamble file.
+    /// </remarks>
+    /// <param name="artworkLines">The ordered artwork source lines inside a <c>carrot-art</c> fence.</param>
+    private void renderArtwork(IEnumerable<string> artworkLines)
+    {
+        #region implementation
+
+        foreach (var line in artworkLines)
+        {
+            var markup = new StringBuilder();
+            var position = 0;
+
+            foreach (Match match in ArtworkColorPattern.Matches(line))
+            {
+                markup.Append(Markup.Escape(line[position..match.Index]));
+                markup.Append('[');
+                markup.Append(match.Groups["color"].Value);
+                markup.Append(']');
+                markup.Append(Markup.Escape(match.Groups["content"].Value));
+                markup.Append("[/]");
+                position = match.Index + match.Length;
+            }
+
+            markup.Append(Markup.Escape(line[position..]));
+            _console.MarkupLine(markup.ToString());
+        }
+
         _console.WriteLine();
 
         #endregion

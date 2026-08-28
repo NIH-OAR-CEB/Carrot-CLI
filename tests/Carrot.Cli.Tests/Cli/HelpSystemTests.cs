@@ -161,6 +161,37 @@ public sealed class HelpSystemTests
 
     /**************************************************************/
     /// <summary>
+    /// Verifies a Carrot artwork fence preserves glyphs and spacing while consuming safe color tags.
+    /// </summary>
+    [Fact]
+    public void Render_CarrotArtworkFence_RendersRestrictedColoredGlyphs()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = new TestConsole();
+        var renderer = new MarkdownHelpRenderer(console);
+        const string markdown = """
+            ```carrot-art
+            [color=#7f7f7f]  [/color][color=#f79005]▒[/color]
+            ```
+
+            # Welcome
+            """;
+
+        // Act
+        renderer.Render(markdown);
+
+        // Assert
+        Assert.Contains("  ▒", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("[color=", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Welcome", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
     /// Verifies About includes version, compatibility, formats, and notice information.
     /// </summary>
     [Fact]
