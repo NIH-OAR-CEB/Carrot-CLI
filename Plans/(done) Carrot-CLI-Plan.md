@@ -256,7 +256,7 @@ The Task Scheduler publish profile produces a self-contained, untrimmed `win-x64
 
 ## Completion Evidence
 
-Completed on 2026-08-28 as a layout-only scaffold. The solution contains every planned production and test file, OpenAPI-aligned request/response DTOs, documented command and workflow signatures, strongly typed configuration, feature boundaries, immutable operation-result contracts, a self-contained Windows Task Scheduler publish profile, user documentation, and 19 explicitly skipped future acceptance scenarios. Operational methods remain `NotImplementedException("Layout stub only.")` stubs.
+Completed on 2026-08-28 as a layout-only scaffold. The solution contains every planned production and test file, OpenAPI-aligned request/response DTOs, documented command and workflow signatures, strongly typed configuration, feature boundaries, immutable operation-result contracts, a self-contained Windows Task Scheduler publish profile, user documentation, and explicitly skipped future operational acceptance scenarios. A subsequent contract-validation pass added active in-memory coverage for the supplied Carrot 4.8.6 request parameters and OpenAPI examples while operational methods remained `NotImplementedException("Layout stub only.")` stubs.
 
 The originally proposed Spectre.Console/Cli 0.54.0 pair was corrected to 0.55.0 after NuGet proved that `Spectre.Console.Cli` 0.54.0 is not published on the configured feed and resolves to 0.55.0, which requires Spectre.Console 0.55.0. The compatible pair is centrally pinned in `Directory.Packages.props`.
 
@@ -264,7 +264,7 @@ Verification completed with:
 
 - `dotnet restore .\Carrot-CLI.slnx --disable-parallel`
 - `dotnet build .\Carrot-CLI.slnx --no-restore --disable-build-servers -m:1 --verbosity minimal` — 0 warnings and 0 errors.
-- `dotnet test .\Carrot-CLI.slnx --no-build --no-restore --verbosity normal` — 19 total future tests, 19 intentionally skipped, 0 failed.
+- `dotnet test .\Carrot-CLI.slnx --no-build --no-restore --verbosity normal` — 32 total cases, 15 active contract cases passed, 17 future operational cases intentionally skipped, and 0 failed after the schema-validation pass.
 - `dotnet restore .\src\Carrot.Cli\Carrot.Cli.csproj -r win-x64 --disable-parallel`
 - `dotnet publish .\src\Carrot.Cli\Carrot.Cli.csproj --no-restore --disable-build-servers -m:1 -p:PublishProfile=WindowsTaskScheduler --verbosity minimal` — succeeded with a self-contained, untrimmed `win-x64` folder output.
 - `git diff --check` — no whitespace errors; Git reported only expected line-ending normalization notices for pre-existing tracked files.

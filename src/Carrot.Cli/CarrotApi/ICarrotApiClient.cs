@@ -16,11 +16,16 @@ internal interface ICarrotApiClient
     /// </summary>
     /// <param name="serviceEndpoint">The absolute service base URI ending at <c>/service</c>.</param>
     /// <param name="timeout">The request timeout for this operation.</param>
+    /// <param name="indent">
+    /// Whether the optional <c>indent</c> query parameter requests human-readable JSON, or
+    /// <see langword="null"/> when the query parameter should be omitted.
+    /// </param>
     /// <param name="cancellationToken">The token signaling cooperative cancellation.</param>
     /// <returns>A task containing the exact list response or structured endpoint failures.</returns>
     Task<OperationResult<ListResponse>> GetConfigurationAsync(
         Uri serviceEndpoint,
         TimeSpan timeout,
+        bool? indent,
         CancellationToken cancellationToken);
 
     /**************************************************************/
@@ -31,6 +36,10 @@ internal interface ICarrotApiClient
     /// <param name="request">The OpenAPI-aligned cluster request body.</param>
     /// <param name="template">The optional named template query parameter.</param>
     /// <param name="timeout">The request timeout for this operation.</param>
+    /// <param name="indent">
+    /// Whether the optional <c>indent</c> query parameter requests human-readable JSON, or
+    /// <see langword="null"/> when the query parameter should be omitted.
+    /// </param>
     /// <param name="cancellationToken">The token signaling cooperative cancellation.</param>
     /// <returns>A task containing the exact cluster response or structured request failures.</returns>
     Task<OperationResult<ClusterResponse>> ClusterAsync(
@@ -38,5 +47,6 @@ internal interface ICarrotApiClient
         ClusterRequest request,
         string? template,
         TimeSpan timeout,
+        bool? indent,
         CancellationToken cancellationToken);
 }

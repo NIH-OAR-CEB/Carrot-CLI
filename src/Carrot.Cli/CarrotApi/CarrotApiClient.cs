@@ -40,6 +40,7 @@ internal sealed class CarrotApiClient : ICarrotApiClient
     public Task<OperationResult<ListResponse>> GetConfigurationAsync(
         Uri serviceEndpoint,
         TimeSpan timeout,
+        bool? indent,
         CancellationToken cancellationToken)
     {
         #region implementation
@@ -59,6 +60,7 @@ internal sealed class CarrotApiClient : ICarrotApiClient
         ClusterRequest request,
         string? template,
         TimeSpan timeout,
+        bool? indent,
         CancellationToken cancellationToken)
     {
         #region implementation

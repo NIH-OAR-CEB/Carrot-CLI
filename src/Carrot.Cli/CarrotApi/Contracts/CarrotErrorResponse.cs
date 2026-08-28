@@ -4,6 +4,29 @@ namespace Carrot.Cli.CarrotApi.Contracts;
 
 /**************************************************************/
 /// <summary>
+/// Defines the problem types enumerated by the Carrot 4.8.6 OpenAPI error schema.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<CarrotErrorType>))]
+internal enum CarrotErrorType
+{
+    /**************************************************************/
+    /// <summary>Indicates an invalid or incomplete client request.</summary>
+    [JsonStringEnumMemberName("BAD_REQUEST")]
+    BadRequest,
+
+    /**************************************************************/
+    /// <summary>Indicates a server licensing problem.</summary>
+    [JsonStringEnumMemberName("LICENSING")]
+    Licensing,
+
+    /**************************************************************/
+    /// <summary>Indicates an unhandled server-side failure.</summary>
+    [JsonStringEnumMemberName("UNHANDLED_ERROR")]
+    UnhandledError
+}
+
+/**************************************************************/
+/// <summary>
 /// Models the Carrot OpenAPI error response without exposing stack details to normal output.
 /// </summary>
 internal sealed record CarrotErrorResponse
@@ -11,9 +34,9 @@ internal sealed record CarrotErrorResponse
     #region implementation
 
     /**************************************************************/
-    /// <summary>Gets the problem type such as BAD_REQUEST, LICENSING, or UNHANDLED_ERROR.</summary>
+    /// <summary>Gets the OpenAPI-enumerated problem type.</summary>
     [JsonPropertyName("type")]
-    public required string Type { get; init; }
+    public required CarrotErrorType Type { get; init; }
 
     /**************************************************************/
     /// <summary>Gets the human-readable problem description.</summary>
