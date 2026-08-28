@@ -46,6 +46,14 @@ internal sealed class CarrotCliOptions
     public int ContentPreviewCharacterLimit { get; set; } = 30_000;
 
     /**************************************************************/
+    /// <summary>Gets or sets the number of prepared document rows rendered on each console page.</summary>
+    public int PreparedResultsPageSize { get; set; } = 5;
+
+    /**************************************************************/
+    /// <summary>Gets or sets the maximum extracted characters shown in one console table preview.</summary>
+    public int ConsolePreviewCharacterLimit { get; set; } = 120;
+
+    /**************************************************************/
     /// <summary>Gets or sets the default clustering algorithm when no template is selected.</summary>
     public string DefaultAlgorithm { get; set; } = "Lingo";
 

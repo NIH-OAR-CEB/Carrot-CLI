@@ -29,12 +29,17 @@ internal sealed class InputBatch : IAsyncDisposable
     /// Releases any temporary extraction directory owned by the batch.
     /// </summary>
     /// <returns>A value task representing asynchronous cleanup.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     public ValueTask DisposeAsync()
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        if (!string.IsNullOrWhiteSpace(TemporaryDirectoryPath)
+            && Directory.Exists(TemporaryDirectoryPath))
+        {
+            Directory.Delete(TemporaryDirectoryPath, recursive: true);
+        }
+
+        return ValueTask.CompletedTask;
 
         #endregion
     }

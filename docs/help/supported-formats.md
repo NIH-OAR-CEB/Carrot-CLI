@@ -1,6 +1,6 @@
 # Supported Formats
 
-The future processing pipeline will accept these extensions case-insensitively:
+Interactive preparation accepts these extensions case-insensitively:
 
 - `.docx` — Word document body and table text.
 - `.xlsx` — Nonempty spreadsheet cells, sheet by sheet.
@@ -9,4 +9,4 @@ The future processing pipeline will accept these extensions case-insensitively:
 - `.md` — BOM-aware Markdown source text.
 - `.pdf` — Searchable text layer only.
 
-OCR is not planned. Image-only or scanned PDFs require searchable text before processing.
+Inputs may be individual supported files, folders, or ZIP archives. Nested ZIPs are rejected. OCR is not included; image-only or scanned PDFs become failed preparation rows unless they already contain a searchable text layer.

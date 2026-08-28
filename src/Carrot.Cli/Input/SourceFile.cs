@@ -13,6 +13,10 @@ internal sealed record SourceFile
     public int SourceOrdinal { get; init; }
 
     /**************************************************************/
+    /// <summary>Gets the canonical case-insensitive identity used to remove duplicate discoveries.</summary>
+    public required string SourceKey { get; init; }
+
+    /**************************************************************/
     /// <summary>Gets the original folder or ZIP container path.</summary>
     public required string ContainerPath { get; init; }
 

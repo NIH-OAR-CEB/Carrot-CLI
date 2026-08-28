@@ -1,6 +1,6 @@
 # Carrot CLI
 
-Carrot CLI is a .NET 10 command-line client scaffold for a future Windows client compatible with the Carrot 4.8.6 Document Clustering Server API. Its initial Spectre.Console UI is runnable: no arguments open selectable menus, every workflow menu includes Markdown-backed help, and Help and About are also available as named commands. Document discovery, extraction, server calls, and report generation remain explicit operational stubs.
+Carrot CLI is a .NET 10 Windows command-line client compatible with the Carrot 4.8.6 Document Clustering Server API. Its interactive **Process Documents** workflow can collect multiple files, folders, and ZIP archives, safely discover supported documents, extract searchable text, and review the prepared rows before processing. Carrot submission and report generation remain deferred.
 
 ## Planned commands
 
@@ -14,7 +14,17 @@ carrot-cli about
 carrot-cli --version
 ```
 
-No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. Process Documents, Preview Request, and Server Information each open a submenu containing Execute, Help, and Back. Execute currently displays `Pending Implementation` without invoking an operational stub. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory.
+No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. **Process Documents** opens an editable input list; **Preview Request** and **Server Information** retain their Execute, Help, and Back menus and still report `Pending Implementation`. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory.
+
+Within **Process Documents**, select **Add Path** once for each input. Paths may be unquoted or surrounded by matching single or double quotes, for example:
+
+```text
+"C:\Data\Case Files"
+'C:\Data\August documents.zip'
+C:\Data\single-report.pdf
+```
+
+Before preparation, queued paths can be removed and folder recursion can be enabled. Preparation retains the first occurrence of duplicate sources, safely expands ZIPs, hashes and extracts valid documents, and keeps file-level failures visible. Results are shown five rows at a time with status, source, size, extracted character count, a short content preview, and any error. Press **Escape** from the pager to return to Batch Actions. **Process Prepared Items** reports how many documents are ready but does not yet contact Carrot or create artifacts.
 
 The preamble source is [`docs/application-preamble.md`](docs/application-preamble.md). Builds and publishes place it at `Content/application-preamble.md` beside the application. Administrators can edit that deployed Markdown file and the next launch will display the revised text without rebuilding.
 
@@ -24,7 +34,7 @@ The preamble source is [`docs/application-preamble.md`](docs/application-preambl
 
 ```text
 Main Menu
-|- Process Documents -> Execute | Help | Back
+|- Process Documents -> Add/Remove Paths -> Prepare -> Review Pages -> Batch Actions
 |- Preview Request -> Execute | Help | Back
 |- Server Information -> Execute | Help | Back
 |- Help
@@ -36,7 +46,7 @@ Available help topics are getting started, process, preview, server information,
 
 ## Supported input and planned artifacts
 
-The future implementation will accept a folder or ZIP archive containing `.docx`, `.xlsx`, `.pptx`, `.txt`, `.md`, and searchable `.pdf` files. Each source file becomes one Carrot document. Results will be written to a single Excel `Results` worksheet and accompanied by full `.request.json`, `.response.json`, and `.log` artifacts under an input-adjacent `Carrot Results` directory.
+Interactive preparation accepts individual files, folders, and ZIP archives containing `.docx`, `.xlsx`, `.pptx`, `.txt`, `.md`, and searchable `.pdf` files. Each successfully prepared source becomes one in-memory Carrot document; corrupt, encrypted, image-only, unreadable, and empty documents remain visible as failed rows. No preparation artifact is written. A later milestone will submit the retained documents and write the planned Excel, JSON, and log artifacts.
 
 See [CLI reference](docs/cli-reference.md), [extraction rules](docs/extraction-rules.md), [output format](docs/output-format.md), [Task Scheduler guidance](docs/task-scheduler.md), and [troubleshooting](docs/troubleshooting.md).
 
@@ -48,4 +58,4 @@ dotnet build .\Carrot-CLI.slnx --no-restore
 dotnet test .\Carrot-CLI.slnx --no-build --no-restore
 ```
 
-The active test suite verifies command metadata, preamble loading and placement, interactive navigation, pending workflow behavior, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Future operational acceptance tests remain explicitly skipped and name the behavior they will eventually protect.
+The active test suite verifies command metadata, preamble loading, interactive navigation, quoted paths, folder and ZIP safety, all supported extractors, deduplication, preparation outcomes, paging/Escape behavior, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Deferred clustering and reporting acceptance tests remain explicitly skipped and name the behavior they will eventually protect.

@@ -9,4 +9,4 @@
 - `6` — Report or artifact persistence failure.
 - `130` — Cooperative cancellation.
 
-Pending interactive operations do not end the session; they display `Pending Implementation` and return to their workflow menu.
+Interactive preparation failures are displayed as rows and messages without ending the menu session. Ctrl+C returns `130`. The pending Process Prepared Items action, Preview Request, and Server Information return to their owning menus without changing the final normal-exit code.

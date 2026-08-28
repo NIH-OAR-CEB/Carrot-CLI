@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace Carrot.Cli.Common;
 
 /**************************************************************/
@@ -15,12 +17,19 @@ internal sealed class HashService
     /// <param name="content">The readable source content stream.</param>
     /// <param name="cancellationToken">The token signaling cooperative cancellation.</param>
     /// <returns>A task containing the 64-character digest.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
-    internal Task<string> ComputeSha256Async(Stream content, CancellationToken cancellationToken)
+    internal async Task<string> ComputeSha256Async(Stream content, CancellationToken cancellationToken)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        ArgumentNullException.ThrowIfNull(content);
+        if (!content.CanRead)
+        {
+            throw new ArgumentException("The hash input stream must be readable.", nameof(content));
+        }
+
+        using var algorithm = SHA256.Create();
+        var digest = await algorithm.ComputeHashAsync(content, cancellationToken).ConfigureAwait(false);
+        return Convert.ToHexString(digest);
 
         #endregion
     }

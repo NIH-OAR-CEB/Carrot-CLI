@@ -2,7 +2,12 @@
 
 - **Interactive input unavailable:** run the executable in a terminal, or use `carrot-cli --help` for named command usage.
 - **Unknown help topic:** run `carrot-cli help` or select Help from the main menu to view valid topics.
-- **Pending Implementation:** the selected UI route is available, but its operational workflow intentionally remains a stub.
+- **Quoted path is rejected:** use one path per Add Path action and matching surrounding single or double quotes.
+- **No supported documents:** direct files must use a supported extension; folders and ZIPs must contain at least one supported document.
+- **Partial preparation:** review failed rows and batch warnings. Ready rows remain eligible for the future Process action.
+- **Process Prepared Items is pending:** preparation is complete, but Carrot submission and report output remain deferred.
+- **Preview or Server Information says Pending Implementation:** those interactive routes intentionally remain deferred.
 - **Missing endpoint:** future named commands will require `--endpoint` or `CARROTCLI_ENDPOINT`.
 - **Scanned PDF:** OCR is not included; provide a searchable text layer.
+- **Content appears in the terminal:** prepared rows intentionally show a short extracted-text preview; see Privacy before handling sensitive content.
 - **Scheduled task has no output:** configure **Start in**, quote paths, and provide `--log-file` when operational commands are implemented.

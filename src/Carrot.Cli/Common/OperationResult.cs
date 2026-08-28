@@ -39,7 +39,14 @@ internal sealed record OperationResult<T>
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        ArgumentNullException.ThrowIfNull(value);
+
+        return new OperationResult<T>
+        {
+            Status = OperationStatus.Success,
+            Value = value,
+            Messages = copyMessages(messages)
+        };
 
         #endregion
     }
@@ -56,7 +63,20 @@ internal sealed record OperationResult<T>
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(messages);
+
+        if (messages.Count == 0)
+        {
+            throw new ArgumentException("Partial success requires at least one diagnostic message.", nameof(messages));
+        }
+
+        return new OperationResult<T>
+        {
+            Status = OperationStatus.PartialSuccess,
+            Value = value,
+            Messages = copyMessages(messages)
+        };
 
         #endregion
     }
@@ -72,7 +92,64 @@ internal sealed record OperationResult<T>
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        ArgumentNullException.ThrowIfNull(messages);
+
+        if (messages.Count == 0)
+        {
+            throw new ArgumentException("Failure requires at least one diagnostic message.", nameof(messages));
+        }
+
+        return new OperationResult<T>
+        {
+            Status = OperationStatus.Failure,
+            Value = default,
+            Messages = copyMessages(messages)
+        };
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Creates a failed result that retains diagnostic output which is not eligible for downstream processing.
+    /// </summary>
+    /// <param name="value">The diagnostic value retained for review.</param>
+    /// <param name="messages">The immutable failure messages.</param>
+    /// <returns>A failed operation result retaining its review-only value.</returns>
+    internal static OperationResult<T> Failure(T value, IReadOnlyList<OperationMessage> messages)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(messages);
+        if (messages.Count == 0)
+        {
+            throw new ArgumentException("Failure requires at least one diagnostic message.", nameof(messages));
+        }
+
+        return new OperationResult<T>
+        {
+            Status = OperationStatus.Failure,
+            Value = value,
+            Messages = copyMessages(messages)
+        };
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Copies a caller-owned message collection into an immutable-by-convention array.
+    /// </summary>
+    /// <param name="messages">The optional messages supplied by the operation.</param>
+    /// <returns>A detached read-only message collection.</returns>
+    private static IReadOnlyList<OperationMessage> copyMessages(IReadOnlyList<OperationMessage>? messages)
+    {
+        #region implementation
+
+        return messages is null || messages.Count == 0
+            ? Array.Empty<OperationMessage>()
+            : Array.AsReadOnly(messages.ToArray());
 
         #endregion
     }

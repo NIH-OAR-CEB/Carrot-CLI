@@ -1,5 +1,9 @@
 using Carrot.Cli.Cli.UI;
+using Carrot.Cli.Common;
+using Carrot.Cli.Configuration;
+using Carrot.Cli.Input;
 using Carrot.Cli.Processing;
+using Microsoft.Extensions.Options;
 using Spectre.Console.Testing;
 using Xunit;
 
@@ -48,7 +52,6 @@ public sealed class InteractiveMenuTests
     /// <param name="mainMenuOffset">The number of down-arrow inputs needed to select the workflow.</param>
     /// <param name="workflowTitle">The expected workflow title.</param>
     [Theory]
-    [InlineData(0, "Process Documents")]
     [InlineData(1, "Preview Request")]
     [InlineData(2, "Server Information")]
     public async Task RunAsync_WorkflowExecute_WritesPendingAndReturnsToMain(
@@ -83,6 +86,34 @@ public sealed class InteractiveMenuTests
     }
 
     /**************************************************************/
+    /// <summary>Verifies Process Documents opens editable path setup instead of the deferred workflow panel.</summary>
+    [Fact]
+    public async Task RunAsync_ProcessDocuments_OpensInputSetupAndReturnsToMain()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = createInteractiveConsole();
+        console.Input.PushKey(ConsoleKey.Enter);
+        pushDownKeys(console, 2);
+        console.Input.PushKey(ConsoleKey.Enter);
+        pushDownKeys(console, 5);
+        console.Input.PushKey(ConsoleKey.Enter);
+        var menu = createMenu(console);
+
+        // Act
+        var exitCode = await menu.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Contains("Build an input batch", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Add Path", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pending Implementation", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>
     /// Verifies a workflow Help selection renders focused Markdown and returns to that workflow menu.
     /// </summary>
@@ -108,7 +139,7 @@ public sealed class InteractiveMenuTests
         // Assert
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Contains("Process Documents", console.Output, StringComparison.Ordinal);
-        Assert.Contains("without reading files", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Build the input batch", console.Output, StringComparison.Ordinal);
 
         #endregion
     }
@@ -216,7 +247,22 @@ public sealed class InteractiveMenuTests
             new StubApplicationPreambleProvider(),
             markdownRenderer);
         var aboutRenderer = new AboutRenderer(console);
-        return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer);
+        var options = Options.Create(new CarrotCliOptions());
+        var formats = new DocumentFormatCatalog();
+        var folderLoader = new FolderInputSourceLoader(formats, options);
+        var fileLoader = new FileInputSourceLoader(formats, options);
+        var zipLoader = new ZipInputSourceLoader(formats, options);
+        var resolver = new InputSourceResolver(folderLoader, fileLoader, zipLoader, formats);
+        var pathNormalizer = new InputPathNormalizer();
+        var pager = new PreparedResultsPager(console, options);
+        var processDocumentsMenu = new ProcessDocumentsMenu(
+            console,
+            helpRenderer,
+            pathNormalizer,
+            resolver,
+            new StubDocumentPreparationWorkflow(),
+            pager);
+        return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer, processDocumentsMenu);
 
         #endregion
     }
@@ -271,6 +317,37 @@ public sealed class InteractiveMenuTests
             #region implementation
 
             return "# Welcome to Carrot CLI\n\nSelect a menu option to get started.";
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Supplies a deterministic unused preparation result for main-menu navigation tests.</summary>
+    private sealed class StubDocumentPreparationWorkflow : IDocumentPreparationWorkflow
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Returns an empty failed batch if a navigation test unexpectedly invokes preparation.</summary>
+        public Task<OperationResult<PreparedDocumentBatch>> PrepareAsync(
+            PrepareDocumentsRequest request,
+            CancellationToken cancellationToken)
+        {
+            #region implementation
+
+            return Task.FromResult(OperationResult<PreparedDocumentBatch>.Failure(
+                new PreparedDocumentBatch(),
+                [
+                    new OperationMessage
+                    {
+                        Code = "test.unexpected-preparation",
+                        Message = "No documents were prepared by the navigation stub.",
+                        Severity = OperationMessageSeverity.Error
+                    }
+                ]));
 
             #endregion
         }

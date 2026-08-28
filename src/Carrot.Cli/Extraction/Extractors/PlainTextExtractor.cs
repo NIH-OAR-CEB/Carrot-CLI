@@ -11,6 +11,25 @@ internal sealed class PlainTextExtractor : IDocumentTextExtractor
 {
     #region implementation
 
+    private static readonly IReadOnlySet<string> Extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".txt",
+        ".md"
+    };
+    private readonly ExtractionResultFactory _resultFactory;
+
+    /**************************************************************/
+    /// <summary>Initializes plain-text extraction with common result construction.</summary>
+    public PlainTextExtractor(ExtractionResultFactory resultFactory)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(resultFactory);
+        _resultFactory = resultFactory;
+
+        #endregion
+    }
+
     /**************************************************************/
     /// <summary>Gets the TXT and Markdown extensions handled by this extractor.</summary>
     public IReadOnlySet<string> SupportedExtensions
@@ -19,7 +38,7 @@ internal sealed class PlainTextExtractor : IDocumentTextExtractor
         {
             #region implementation
 
-            throw new NotImplementedException("Layout stub only.");
+            return Extensions;
 
             #endregion
         }
@@ -27,12 +46,27 @@ internal sealed class PlainTextExtractor : IDocumentTextExtractor
 
     /**************************************************************/
     /// <summary>Extracts BOM-aware text from one TXT or Markdown source.</summary>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
-    public Task<ExtractionResult> ExtractAsync(SourceFile sourceFile, CancellationToken cancellationToken)
+    public async Task<ExtractionResult> ExtractAsync(SourceFile sourceFile, CancellationToken cancellationToken)
     {
         #region implementation
 
-        throw new NotImplementedException("Layout stub only.");
+        ArgumentNullException.ThrowIfNull(sourceFile);
+        try
+        {
+            var content = await File.ReadAllTextAsync(sourceFile.PhysicalPath, cancellationToken).ConfigureAwait(false);
+            return await _resultFactory.CreateSuccessAsync(sourceFile, content, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return _resultFactory.CreateFailure(
+                sourceFile,
+                "extraction.text",
+                $"Unable to read text content: {exception.Message}");
+        }
 
         #endregion
     }

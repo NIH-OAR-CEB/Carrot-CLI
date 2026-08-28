@@ -8,9 +8,8 @@ namespace Carrot.Cli.Cli.UI;
 /// Coordinates the selectable main, workflow, and help menus used by human operators.
 /// </summary>
 /// <remarks>
-/// Operational workflow services are deliberately absent from this type until their layout
-/// stubs are implemented. Execute selections currently display <c>Pending Implementation</c>
-/// and remain inside the selected workflow menu.
+/// Process Documents delegates to its implemented preparation and review coordinator. Preview
+/// Request and Server Information retain deferred Execute actions inside their workflow menus.
 /// </remarks>
 /// <seealso cref="HelpRenderer"/>
 /// <seealso cref="AboutRenderer"/>
@@ -24,13 +23,14 @@ internal sealed class InteractiveMenu
     private readonly ApplicationPreambleRenderer _preambleRenderer;
     private readonly HelpRenderer _helpRenderer;
     private readonly AboutRenderer _aboutRenderer;
+    private readonly ProcessDocumentsMenu _processDocumentsMenu;
 
     /**************************************************************/
     /// <summary>Defines stable actions available from the application main menu.</summary>
     private enum MainMenuChoice
     {
         /**************************************************************/
-        /// <summary>Opens the complete document-processing workflow menu.</summary>
+        /// <summary>Opens document preparation, review, and retained batch actions.</summary>
         Process,
 
         /**************************************************************/
@@ -73,17 +73,19 @@ internal sealed class InteractiveMenu
 
     /**************************************************************/
     /// <summary>
-    /// Initializes the menu with console and presentation dependencies only.
+    /// Initializes the main menu with presentation and document-preparation navigation dependencies.
     /// </summary>
     /// <param name="console">The interactive Spectre console.</param>
     /// <param name="preambleRenderer">The renderer for the editable welcome and getting-started content.</param>
     /// <param name="helpRenderer">The curated Markdown help renderer.</param>
     /// <param name="aboutRenderer">The application-information renderer.</param>
+    /// <param name="processDocumentsMenu">The implemented document preparation and review menu.</param>
     public InteractiveMenu(
         IAnsiConsole console,
         ApplicationPreambleRenderer preambleRenderer,
         HelpRenderer helpRenderer,
-        AboutRenderer aboutRenderer)
+        AboutRenderer aboutRenderer,
+        ProcessDocumentsMenu processDocumentsMenu)
     {
         #region implementation
 
@@ -91,11 +93,13 @@ internal sealed class InteractiveMenu
         ArgumentNullException.ThrowIfNull(preambleRenderer);
         ArgumentNullException.ThrowIfNull(helpRenderer);
         ArgumentNullException.ThrowIfNull(aboutRenderer);
+        ArgumentNullException.ThrowIfNull(processDocumentsMenu);
 
         _console = console;
         _preambleRenderer = preambleRenderer;
         _helpRenderer = helpRenderer;
         _aboutRenderer = aboutRenderer;
+        _processDocumentsMenu = processDocumentsMenu;
 
         #endregion
     }
@@ -129,7 +133,7 @@ internal sealed class InteractiveMenu
                 switch (choice)
                 {
                     case MainMenuChoice.Process:
-                        await runWorkflowMenuAsync("Process Documents", "process", cancellationToken)
+                        await _processDocumentsMenu.RunAsync(cancellationToken)
                             .ConfigureAwait(false);
                         break;
                     case MainMenuChoice.Preview:
