@@ -22,7 +22,7 @@ internal sealed class ProcessDocumentsMenu
     private readonly InputSourceResolver _inputResolver;
     private readonly IDocumentPreparationWorkflow _preparationWorkflow;
     private readonly PreparedResultsPager _pager;
-    private readonly PreparedJsonPackageRenderer _jsonPackageRenderer;
+    private readonly PreparedJsonPackagePager _jsonPackagePager;
 
     /**************************************************************/
     /// <summary>Defines actions available while assembling an ordered input-path list.</summary>
@@ -108,7 +108,7 @@ internal sealed class ProcessDocumentsMenu
         InputSourceResolver inputResolver,
         IDocumentPreparationWorkflow preparationWorkflow,
         PreparedResultsPager pager,
-        PreparedJsonPackageRenderer jsonPackageRenderer)
+        PreparedJsonPackagePager jsonPackagePager)
     {
         #region implementation
 
@@ -118,14 +118,14 @@ internal sealed class ProcessDocumentsMenu
         ArgumentNullException.ThrowIfNull(inputResolver);
         ArgumentNullException.ThrowIfNull(preparationWorkflow);
         ArgumentNullException.ThrowIfNull(pager);
-        ArgumentNullException.ThrowIfNull(jsonPackageRenderer);
+        ArgumentNullException.ThrowIfNull(jsonPackagePager);
         _console = console;
         _helpRenderer = helpRenderer;
         _pathNormalizer = pathNormalizer;
         _inputResolver = inputResolver;
         _preparationWorkflow = preparationWorkflow;
         _pager = pager;
-        _jsonPackageRenderer = jsonPackageRenderer;
+        _jsonPackagePager = jsonPackagePager;
 
         #endregion
     }
@@ -358,7 +358,7 @@ internal sealed class ProcessDocumentsMenu
                     await _pager.ShowAsync(result, cancellationToken).ConfigureAwait(false);
                     break;
                 case BatchChoice.PreviewJson:
-                    _jsonPackageRenderer.Render(batch);
+                    await _jsonPackagePager.ShowAsync(batch, cancellationToken).ConfigureAwait(false);
                     break;
                 case BatchChoice.PreviewJsonUnavailable:
                     _console.MarkupLine("[yellow]No successfully prepared documents are available to preview.[/]");

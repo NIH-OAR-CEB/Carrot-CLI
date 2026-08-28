@@ -263,7 +263,7 @@ public sealed class InteractiveMenuTests
             resolver,
             new StubDocumentPreparationWorkflow(),
             pager,
-            new PreparedJsonPackageRenderer(console, new ClusterRequestFactory(options)));
+            new PreparedJsonPackagePager(console, new ClusterRequestFactory(options)));
         return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer, processDocumentsMenu);
 
         #endregion

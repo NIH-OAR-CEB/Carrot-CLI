@@ -20,7 +20,7 @@ This milestone stops before Carrot submission and artifact generation. `Process 
 - Limit terminal previews to 120 characters, collapse whitespace and line breaks, indicate truncation, and escape all paths, extracted text, and messages before rendering.
 - Provide Previous Page, Next Page, and Back to Batch Actions controls. Map Escape to Back to Batch Actions using Spectre.Console's cancel-result support.
 - Batch actions provide View Results, Preview JSON Package, Process Prepared Items, Start Over, Help, and Back to Main Menu.
-- Preview JSON Package uses the shared Carrot request-contract mapper to render configured language/algorithm values and every ready document's complete title/content. It excludes client-only metadata, performs no network request, and writes no file.
+- Preview JSON Package uses the shared Carrot request-contract mapper to render configured language/algorithm values and every ready document's complete title/content as indented, screen-sized pages. Long strings use a display-only `↪` continuation marker; Next is the default, Previous moves backward, and Escape returns to batch actions. It excludes client-only metadata, performs no network request, and writes no file.
 - `Process Prepared Items` is enabled when at least one row is ready. It reports the ready count and that processing is pending, performs no network/output work, and retains the batch. When no rows are ready, show the action as unavailable with an explanation.
 - Failed rows remain reviewable but are excluded from the future processable document collection. Start Over and Back require confirmation before discarding a prepared batch.
 - Ctrl+C propagates cancellation, cleans temporary ZIP content, and returns exit code `130`.

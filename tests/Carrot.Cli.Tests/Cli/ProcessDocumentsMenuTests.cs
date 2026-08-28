@@ -41,6 +41,7 @@ public sealed class ProcessDocumentsMenuTests
             console.Input.PushKey(ConsoleKey.Escape);
             pushDownKeys(console, 1);
             console.Input.PushKey(ConsoleKey.Enter);
+            console.Input.PushKey(ConsoleKey.Escape);
             pushDownKeys(console, 2);
             console.Input.PushKey(ConsoleKey.Enter);
             pushDownKeys(console, 5);
@@ -126,6 +127,36 @@ public sealed class ProcessDocumentsMenuTests
     }
 
     /**************************************************************/
+    /// <summary>Verifies indented JSON and long values are wrapped into navigable pages.</summary>
+    [Fact]
+    public async Task ShowAsync_LongJsonPackage_PrettyPrintsWrapsAndPages()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = createConsole();
+        console.Profile.Width = 50;
+        console.Profile.Height = 17;
+        var options = Options.Create(new CarrotCliOptions());
+        var pager = new PreparedJsonPackagePager(console, new ClusterRequestFactory(options));
+        var result = createReadyResult("C:\\Inputs\\document.txt", 1, contentLength: 220);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Escape);
+
+        // Act
+        await pager.ShowAsync(result.Value!, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains("  \"language\": \"English\"", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Page 1/", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Page 2/", console.Output, StringComparison.Ordinal);
+        Assert.Contains("↪", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Press Escape to return to Batch Actions", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Creates Process Documents with real prompt validation and a controlled preparation boundary.</summary>
     private static ProcessDocumentsMenu createMenu(
         TestConsole console,
@@ -153,14 +184,17 @@ public sealed class ProcessDocumentsMenuTests
             resolver,
             workflow,
             new PreparedResultsPager(console, options),
-            new PreparedJsonPackageRenderer(console, new ClusterRequestFactory(options)));
+            new PreparedJsonPackagePager(console, new ClusterRequestFactory(options)));
 
         #endregion
     }
 
     /**************************************************************/
     /// <summary>Creates a successful prepared batch with deterministic review rows and extracted documents.</summary>
-    private static OperationResult<PreparedDocumentBatch> createReadyResult(string sourcePath, int count)
+    private static OperationResult<PreparedDocumentBatch> createReadyResult(
+        string sourcePath,
+        int count,
+        int contentLength = 0)
     {
         #region implementation
 
@@ -171,6 +205,9 @@ public sealed class ProcessDocumentsMenuTests
         {
             var fileName = count == 1 ? Path.GetFileName(sourcePath) : $"document-{index + 1}.txt";
             var physicalPath = count == 1 ? sourcePath : Path.Combine(containerPath, fileName);
+            var content = contentLength > 0
+                ? new string((char)('a' + (index % 26)), contentLength)
+                : $"Preview content {index + 1}";
             var sourceFile = new SourceFile
             {
                 SourceOrdinal = index,
@@ -187,7 +224,7 @@ public sealed class ProcessDocumentsMenuTests
                 SourceFile = sourceFile,
                 CarrotDocumentIndex = index,
                 Title = Path.GetFileNameWithoutExtension(fileName),
-                Content = $"Preview content {index + 1}",
+                Content = content,
                 Sha256 = new string('A', 64)
             });
             rows.Add(new PreparedDocumentRow
@@ -201,8 +238,8 @@ public sealed class ProcessDocumentsMenuTests
                 SizeBytes = 20 + index,
                 Sha256 = new string('A', 64),
                 Status = PreparedDocumentStatus.Ready,
-                ExtractedCharacterCount = 17,
-                ContentPreview = $"Preview content {index + 1}"
+                ExtractedCharacterCount = content.Length,
+                ContentPreview = content
             });
         }
 

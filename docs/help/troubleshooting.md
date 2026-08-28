@@ -10,4 +10,5 @@
 - **Missing endpoint:** future named commands will require `--endpoint` or `CARROTCLI_ENDPOINT`.
 - **Scanned PDF:** OCR is not included; provide a searchable text layer.
 - **Content appears in the terminal:** prepared rows intentionally show a short extracted-text preview, while Preview JSON Package intentionally shows complete ready-document content; see Privacy before handling sensitive content.
+- **JSON preview looks truncated:** `↪` marks the visual continuation of the same long JSON string. Use Next Page to continue; the serialized value is not truncated.
 - **Scheduled task has no output:** configure **Start in**, quote paths, and provide `--log-file` when operational commands are implemented.

@@ -70,7 +70,7 @@ internal static class ServiceRegistration
         services.AddTransient<HelpRenderer>();
         services.AddTransient<AboutRenderer>();
         services.AddTransient<PreparedResultsPager>();
-        services.AddTransient<PreparedJsonPackageRenderer>();
+        services.AddTransient<PreparedJsonPackagePager>();
         services.AddTransient<ProcessDocumentsMenu>();
         services.AddTransient<InteractiveMenu>();
 
