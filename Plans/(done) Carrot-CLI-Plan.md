@@ -133,7 +133,7 @@ Carrot-CLI/
             └── ApiResponses/
 ```
 
-Use centrally pinned packages: Spectre.Console/Cli 0.54.0, Microsoft.Extensions.Hosting 10.0.11, DocumentFormat.OpenXml 3.5.1, ClosedXML 0.105.1, PdfPig 0.1.16, Serilog.Extensions.Hosting 10.0.0, Serilog.Sinks.File 7.0.0, xUnit v3 4.0.0, and Microsoft.NET.Test.Sdk 18.9.0. These choices align with the official [Spectre CLI](https://spectreconsole.net/cli/), [Open XML SDK](https://www.nuget.org/packages/DocumentFormat.OpenXml), [ClosedXML](https://www.nuget.org/packages/ClosedXML), and [PdfPig](https://www.nuget.org/packages/PdfPig) guidance.
+Use centrally pinned packages: Spectre.Console/Cli 0.55.0, Microsoft.Extensions.Hosting 10.0.11, DocumentFormat.OpenXml 3.5.1, ClosedXML 0.105.1, PdfPig 0.1.16, Serilog.Extensions.Hosting 10.0.0, Serilog.Sinks.File 7.0.0, xUnit v3 4.0.0, and Microsoft.NET.Test.Sdk 18.9.0. Spectre.Console/Cli 0.55.0 replaces the originally proposed 0.54.0 because the CLI package is not published at 0.54.0 and NuGet otherwise resolves an incompatible mixed-version graph. These choices align with the official [Spectre CLI](https://spectreconsole.net/cli/), [Open XML SDK](https://www.nuget.org/packages/DocumentFormat.OpenXml), [ClosedXML](https://www.nuget.org/packages/ClosedXML), and [PdfPig](https://www.nuget.org/packages/PdfPig) guidance.
 
 ## Command and Stub Contracts
 
@@ -253,3 +253,18 @@ The Task Scheduler publish profile produces a self-contained, untrimmed `win-x64
 - Add one future end-to-end test using mixed fixture files and a fake HTTP handler; no live Carrot server is required in unit tests.
 - The local Carrot 4.8.6 OpenAPI file is authoritative; the web search UI is informational.
 - No OCR, authentication, nested archive processing, individual-file input mode, Carrot server management, automatic API batching, or saved endpoint profile is included.
+
+## Completion Evidence
+
+Completed on 2026-08-28 as a layout-only scaffold. The solution contains every planned production and test file, OpenAPI-aligned request/response DTOs, documented command and workflow signatures, strongly typed configuration, feature boundaries, immutable operation-result contracts, a self-contained Windows Task Scheduler publish profile, user documentation, and 19 explicitly skipped future acceptance scenarios. Operational methods remain `NotImplementedException("Layout stub only.")` stubs.
+
+The originally proposed Spectre.Console/Cli 0.54.0 pair was corrected to 0.55.0 after NuGet proved that `Spectre.Console.Cli` 0.54.0 is not published on the configured feed and resolves to 0.55.0, which requires Spectre.Console 0.55.0. The compatible pair is centrally pinned in `Directory.Packages.props`.
+
+Verification completed with:
+
+- `dotnet restore .\Carrot-CLI.slnx --disable-parallel`
+- `dotnet build .\Carrot-CLI.slnx --no-restore --disable-build-servers -m:1 --verbosity minimal` — 0 warnings and 0 errors.
+- `dotnet test .\Carrot-CLI.slnx --no-build --no-restore --verbosity normal` — 19 total future tests, 19 intentionally skipped, 0 failed.
+- `dotnet restore .\src\Carrot.Cli\Carrot.Cli.csproj -r win-x64 --disable-parallel`
+- `dotnet publish .\src\Carrot.Cli\Carrot.Cli.csproj --no-restore --disable-build-servers -m:1 -p:PublishProfile=WindowsTaskScheduler --verbosity minimal` — succeeded with a self-contained, untrimmed `win-x64` folder output.
+- `git diff --check` — no whitespace errors; Git reported only expected line-ending normalization notices for pre-existing tracked files.
