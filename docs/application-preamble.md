@@ -30,7 +30,7 @@ Carrot CLI is a guided Windows command-line client for preparing and clustering 
 3. Press **Escape** to leave paging and use the retained Batch Actions.
 4. Select **Preview JSON Package** to inspect the complete pretty-printed local request one page at a time without sending or saving it.
 5. Select **Process Prepared Items**, confirm the service endpoint, and review assigned or unassigned results.
-6. Select **Save Processed Results to Excel** to choose a `.xlsx` path and explicitly persist the latest success.
+6. Select **Save Processed Results to Excel**, then press Enter to accept the suggested timestamped `.xlsx` path or edit it before explicitly persisting the latest success.
 7. Select **Help** from any menu for quoted-path, format, extraction, clustering, output, and privacy guidance.
 
 Processing sends every ready document's complete extracted text to the selected endpoint. It does not write files automatically. Explicit Excel export includes source paths, hashes, memberships, and up to 30,000 extracted characters per submitted document; it writes no JSON sidecar or log. Preview Request, Server Information, and named operational commands remain deferred.

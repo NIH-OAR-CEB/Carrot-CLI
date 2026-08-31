@@ -10,7 +10,7 @@
 - **HTTP processing failure:** confirm the service is reachable. HTTP 400, redirects, malformed JSON, and caller cancellation are not retried; transport errors, 408, 429, and server failures receive at most two retries within the overall operation timeout.
 - **Every result is unassigned:** an empty cluster array is valid. Review the document set and content concision; Carrot2 generally works best with roughly 100–1,000 concise documents.
 - **Response index failure:** Carrot returned a document index outside the submitted array, so the complete response was rejected and no partial mapping was displayed.
-- **Excel path rejected:** enter a `.xlsx` filename under an existing directory. Relative paths and matching surrounding quotes are accepted.
+- **Excel path rejected:** press Enter to accept the complete timestamped suggestion, or edit it to a `.xlsx` filename under an existing directory. Relative paths and matching surrounding quotes are accepted.
 - **Excel export failed:** close the workbook if another application has locked it, verify write permission, or choose another destination. The processed result remains available and no partial workbook replaces the destination.
 - **Preview or Server Information says Pending Implementation:** those interactive routes intentionally remain deferred.
 - **Missing endpoint:** future named commands will require `--endpoint` or `CARROTCLI_ENDPOINT`.

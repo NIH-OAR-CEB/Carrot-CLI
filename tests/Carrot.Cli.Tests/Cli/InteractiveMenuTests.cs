@@ -271,6 +271,7 @@ public sealed class InteractiveMenuTests
             new ProcessedResultsExportFlow(
                 console,
                 new ExcelOutputPathResolver(),
+                new ExcelOutputPathSuggester(TimeProvider.System),
                 new StubProcessedResultsExporter()),
             options);
         return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer, processDocumentsMenu);

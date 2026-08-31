@@ -88,7 +88,9 @@ internal static class ServiceRegistration
         services.AddTransient<PreparedJsonPackagePager>();
         services.AddTransient<ProcessedResultsPager>();
         services.AddSingleton<AtomicFileWriter>();
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<ExcelOutputPathResolver>();
+        services.AddSingleton<ExcelOutputPathSuggester>();
         services.AddSingleton<ProcessedDocumentReportMapper>();
         services.AddSingleton<IExcelReportWriter, ExcelReportWriter>();
         services.AddTransient<IProcessedResultsExporter, ProcessedResultsExporter>();

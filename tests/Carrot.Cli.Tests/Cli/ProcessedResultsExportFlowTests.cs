@@ -26,7 +26,11 @@ public sealed class ProcessedResultsExportFlowTests
             // Arrange
             using var console = createConsole();
             var exporter = new CapturingExporter();
-            var flow = new ProcessedResultsExportFlow(console, new ExcelOutputPathResolver(), exporter);
+            var flow = new ProcessedResultsExportFlow(
+                console,
+                new ExcelOutputPathResolver(),
+                new ExcelOutputPathSuggester(TimeProvider.System),
+                exporter);
             var invalidPath = Path.Combine(root, "result.csv");
             var outputPath = Path.Combine(root, "processed result.xlsx");
             console.Input.PushTextWithEnter(invalidPath);
@@ -51,6 +55,40 @@ public sealed class ProcessedResultsExportFlowTests
     }
 
     /**************************************************************/
+    /// <summary>Verifies Enter accepts the complete suggested path without requiring any pathname typing.</summary>
+    [Fact]
+    public async Task RunAsync_DefaultPathAccepted_SavesSuggestedWorkbook()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = createConsole();
+        var exporter = new CapturingExporter();
+        var timeProvider = new FixedTimeProvider(
+            new DateTimeOffset(2099, 12, 31, 23, 59, 58, TimeSpan.Zero));
+        var pathSuggester = new ExcelOutputPathSuggester(timeProvider);
+        var expectedPath = pathSuggester.Suggest();
+        var flow = new ProcessedResultsExportFlow(
+            console,
+            new ExcelOutputPathResolver(),
+            pathSuggester,
+            exporter);
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        // Act
+        await flow.RunAsync(ReportingTestData.CreateProcessedBatch(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var request = Assert.Single(exporter.Requests);
+        Assert.Equal(expectedPath, request.OutputPath);
+        Assert.EndsWith("carrot-results-20991231-235958.xlsx", request.OutputPath, StringComparison.Ordinal);
+        Assert.Contains("press Enter to accept", console.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Excel report saved", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Verifies declining overwrite leaves the existing file untouched and skips the exporter.</summary>
     [Fact]
     public async Task RunAsync_ExistingFileOverwriteDeclined_DoesNotExport()
@@ -65,7 +103,11 @@ public sealed class ProcessedResultsExportFlowTests
             await File.WriteAllTextAsync(outputPath, "original", TestContext.Current.CancellationToken);
             using var console = createConsole();
             var exporter = new CapturingExporter();
-            var flow = new ProcessedResultsExportFlow(console, new ExcelOutputPathResolver(), exporter);
+            var flow = new ProcessedResultsExportFlow(
+                console,
+                new ExcelOutputPathResolver(),
+                new ExcelOutputPathSuggester(TimeProvider.System),
+                exporter);
             console.Input.PushTextWithEnter(outputPath);
             console.Input.PushTextWithEnter("n");
 
@@ -109,7 +151,11 @@ public sealed class ProcessedResultsExportFlowTests
                         Severity = OperationMessageSeverity.Error
                     }])
             };
-            var flow = new ProcessedResultsExportFlow(console, new ExcelOutputPathResolver(), exporter);
+            var flow = new ProcessedResultsExportFlow(
+                console,
+                new ExcelOutputPathResolver(),
+                new ExcelOutputPathSuggester(TimeProvider.System),
+                exporter);
             console.Input.PushTextWithEnter(outputPath);
             console.Input.PushTextWithEnter("y");
 
@@ -197,6 +243,45 @@ public sealed class ProcessedResultsExportFlowTests
 
             Requests.Add(request);
             return Task.FromResult(Result ?? OperationResult<string>.Success(request.OutputPath));
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Supplies a deterministic UTC instant and UTC local zone for filename assertions.</summary>
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        #region implementation
+
+        private readonly DateTimeOffset _utcNow;
+
+        /**************************************************************/
+        /// <summary>Initializes the provider with one fixed UTC instant.</summary>
+        /// <param name="utcNow">The instant returned by <see cref="GetUtcNow"/>.</param>
+        internal FixedTimeProvider(DateTimeOffset utcNow)
+        {
+            #region implementation
+
+            _utcNow = utcNow.ToUniversalTime();
+
+            #endregion
+        }
+
+        /**************************************************************/
+        /// <summary>Gets UTC as the deterministic local time zone.</summary>
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+        /**************************************************************/
+        /// <summary>Returns the fixed UTC instant.</summary>
+        /// <returns>The configured instant.</returns>
+        public override DateTimeOffset GetUtcNow()
+        {
+            #region implementation
+
+            return _utcNow;
 
             #endregion
         }

@@ -8,7 +8,7 @@ Run `carrot-cli` without arguments to open the interactive menu.
 4. Review successful and failed rows five at a time. Press **Escape** to return to Batch Actions without losing the batch.
 5. Choose **Preview JSON Package** to inspect the complete pretty-printed local `/cluster` request one page at a time. Press **Escape** to return without sending or saving it.
 6. Choose **Process Prepared Items**, confirm the `/service` endpoint, and review correlated assigned or unassigned results. Complete extracted text is sent to the selected endpoint, but processing writes no file automatically.
-7. Use **View Processed Results** to reopen the latest success or **Save Processed Results to Excel** to choose an explicit `.xlsx` destination. Existing files require overwrite confirmation.
+7. Use **View Processed Results** to reopen the latest success or **Save Processed Results to Excel** to accept the suggested timestamped `.xlsx` destination with Enter. The suggestion can be edited, and existing files require overwrite confirmation.
 8. Select **Start Over**, **Back to Main Menu**, or **Exit** when finished.
 
 **Preview Request** and **Server Information** still display `Pending Implementation` from their Execute actions.

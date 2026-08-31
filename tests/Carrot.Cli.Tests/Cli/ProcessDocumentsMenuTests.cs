@@ -391,6 +391,7 @@ public sealed class ProcessDocumentsMenuTests
             new ProcessedResultsExportFlow(
                 console,
                 new ExcelOutputPathResolver(),
+                new ExcelOutputPathSuggester(TimeProvider.System),
                 exporter ?? new CapturingProcessedResultsExporter()),
             options);
 

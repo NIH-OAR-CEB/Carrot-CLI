@@ -7,7 +7,7 @@
 - Interactive endpoint rejected: use an absolute HTTP or HTTPS URL ending exactly in `/service`, without credentials, query text, or a fragment.
 - Scanned PDF: OCR is not included; supply a PDF with a searchable text layer.
 - HTTP failure: verify the Carrot 4.8.6 service is reachable and that the endpoint ends at `/service`; use `server-info` to inspect `/list` before clustering.
-- Excel output path rejected: use a filename ending in `.xlsx` under an existing directory. Matching surrounding quotes and relative paths are accepted.
+- Excel output path rejected: press Enter to accept the complete timestamped suggestion, or edit it to a filename ending in `.xlsx` under an existing directory. Matching surrounding quotes and relative paths are accepted.
 - Excel export failed: close an existing workbook if it is locked, verify destination write permission, and retry or select another path. The retained processed result remains available and a failed save leaves no partial destination.
 - Scheduled task starts but produces no output: set the `Start in` directory and an explicit `--log-file`, then inspect the task's last result code.
 - Partial success (`2`): inspect failed workbook rows while retaining valid clustering results.
