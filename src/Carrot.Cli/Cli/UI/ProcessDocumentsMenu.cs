@@ -13,7 +13,8 @@ namespace Carrot.Cli.Cli.UI;
 /// <remarks>
 /// The JSON preview and interactive processing action share one request factory. Successful
 /// processed results remain available until the prepared batch is discarded; a failed reprocess
-/// attempt leaves both the prepared batch and the latest successful response intact.
+/// attempt leaves both the prepared batch and the latest successful response intact. Excel export
+/// is an explicit retained-result action and never reruns preparation or calls Carrot.
 /// </remarks>
 internal sealed class ProcessDocumentsMenu
 {
@@ -31,6 +32,7 @@ internal sealed class ProcessDocumentsMenu
     private readonly EndpointResolver _endpointResolver;
     private readonly IPreparedDocumentProcessor _documentProcessor;
     private readonly ProcessedResultsPager _processedResultsPager;
+    private readonly ProcessedResultsExportFlow _processedResultsExportFlow;
     private readonly TimeSpan _httpTimeout;
 
     /**************************************************************/
@@ -69,6 +71,10 @@ internal sealed class ProcessDocumentsMenu
         /**************************************************************/
         /// <summary>Reopens the latest successful processed-results pager.</summary>
         ViewProcessedResults,
+
+        /**************************************************************/
+        /// <summary>Saves the latest successful processed result to an explicitly selected Excel workbook.</summary>
+        SaveProcessedResults,
 
         /**************************************************************/
         /// <summary>Displays the complete JSON request package for ready documents.</summary>
@@ -113,7 +119,19 @@ internal sealed class ProcessDocumentsMenu
     }
 
     /**************************************************************/
-    /// <summary>Initializes Process Documents with presentation, validation, and preparation collaborators.</summary>
+    /// <summary>Initializes Process Documents with presentation, validation, preparation, processing, and export collaborators.</summary>
+    /// <param name="console">The interactive console.</param>
+    /// <param name="helpRenderer">The embedded Process Documents help renderer.</param>
+    /// <param name="pathNormalizer">The quoted or unquoted input-path normalizer.</param>
+    /// <param name="inputResolver">The supported input strategy resolver.</param>
+    /// <param name="preparationWorkflow">The document discovery and extraction boundary.</param>
+    /// <param name="pager">The prepared-row pager.</param>
+    /// <param name="jsonPackagePager">The exact request-package preview pager.</param>
+    /// <param name="endpointResolver">The Carrot service endpoint validator.</param>
+    /// <param name="documentProcessor">The retained prepared-document processing boundary.</param>
+    /// <param name="processedResultsPager">The correlated processed-result pager.</param>
+    /// <param name="processedResultsExportFlow">The explicit Excel path, overwrite, and save interaction.</param>
+    /// <param name="options">The validated CLI defaults and safeguards.</param>
     public ProcessDocumentsMenu(
         IAnsiConsole console,
         HelpRenderer helpRenderer,
@@ -125,6 +143,7 @@ internal sealed class ProcessDocumentsMenu
         EndpointResolver endpointResolver,
         IPreparedDocumentProcessor documentProcessor,
         ProcessedResultsPager processedResultsPager,
+        ProcessedResultsExportFlow processedResultsExportFlow,
         IOptions<CarrotCliOptions> options)
     {
         #region implementation
@@ -139,6 +158,7 @@ internal sealed class ProcessDocumentsMenu
         ArgumentNullException.ThrowIfNull(endpointResolver);
         ArgumentNullException.ThrowIfNull(documentProcessor);
         ArgumentNullException.ThrowIfNull(processedResultsPager);
+        ArgumentNullException.ThrowIfNull(processedResultsExportFlow);
         ArgumentNullException.ThrowIfNull(options);
         _console = console;
         _helpRenderer = helpRenderer;
@@ -150,6 +170,7 @@ internal sealed class ProcessDocumentsMenu
         _endpointResolver = endpointResolver;
         _documentProcessor = documentProcessor;
         _processedResultsPager = processedResultsPager;
+        _processedResultsExportFlow = processedResultsExportFlow;
         _httpTimeout = TimeSpan.FromSeconds(options.Value.HttpTimeoutSeconds);
 
         #endregion
@@ -356,6 +377,7 @@ internal sealed class ProcessDocumentsMenu
             if (latestProcessedBatch is not null)
             {
                 choices.Add(BatchChoice.ViewProcessedResults);
+                choices.Add(BatchChoice.SaveProcessedResults);
             }
 
             choices.Add(previewChoice);
@@ -370,6 +392,7 @@ internal sealed class ProcessDocumentsMenu
                 {
                     BatchChoice.ViewResults => "View Prepared Results",
                     BatchChoice.ViewProcessedResults => "View Processed Results",
+                    BatchChoice.SaveProcessedResults => "Save Processed Results to Excel",
                     BatchChoice.PreviewJson => $"Preview JSON Package ({batch.Documents.Count:N0} document(s))",
                     BatchChoice.PreviewJsonUnavailable => "Preview JSON Package (unavailable — 0 ready)",
                     BatchChoice.Process => $"Process Prepared Items ({batch.Documents.Count:N0} ready)",
@@ -391,6 +414,9 @@ internal sealed class ProcessDocumentsMenu
                     break;
                 case BatchChoice.ViewProcessedResults:
                     await _processedResultsPager.ShowAsync(latestProcessedBatch!, cancellationToken).ConfigureAwait(false);
+                    break;
+                case BatchChoice.SaveProcessedResults:
+                    await _processedResultsExportFlow.RunAsync(latestProcessedBatch!, cancellationToken).ConfigureAwait(false);
                     break;
                 case BatchChoice.PreviewJson:
                     await _jsonPackagePager.ShowAsync(batch, cancellationToken).ConfigureAwait(false);

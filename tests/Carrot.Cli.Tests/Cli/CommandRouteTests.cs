@@ -5,6 +5,7 @@ using Carrot.Cli.Cli.UI;
 using Carrot.Cli.CarrotApi;
 using Carrot.Cli.Composition;
 using Carrot.Cli.Processing;
+using Carrot.Cli.Reporting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -177,6 +178,11 @@ public sealed class CommandRouteTests
         Assert.NotNull(provider.GetRequiredService<IPreparedDocumentProcessor>());
         Assert.NotNull(provider.GetRequiredService<EndpointResolver>());
         Assert.NotNull(provider.GetRequiredService<ProcessedResultsPager>());
+        Assert.NotNull(provider.GetRequiredService<IRunIdProvider>());
+        Assert.NotNull(provider.GetRequiredService<ExcelOutputPathResolver>());
+        Assert.NotNull(provider.GetRequiredService<IExcelReportWriter>());
+        Assert.NotNull(provider.GetRequiredService<IProcessedResultsExporter>());
+        Assert.NotNull(provider.GetRequiredService<ProcessedResultsExportFlow>());
 
         #endregion
     }

@@ -9,7 +9,7 @@ Interactive preparation reads complete document content into application memory.
 - Interactive endpoint values are not persisted.
 - Process Prepared Items sends every ready document's full extracted title and text to the selected endpoint after `/list` validation. Redirects are rejected.
 - Processed memberships and the latest successful request/response remain in memory until the batch is discarded or the application exits.
-- Interactive processing writes no Excel, request/response JSON, or log files.
-- Future persisted request/response JSON, logs, and Excel output can include source paths, content, metadata, previews, and failure details.
+- Interactive processing writes no file automatically. **Save Processed Results to Excel** is a separate explicit action.
+- Excel export includes source paths, filenames, hashes, endpoint/settings, memberships, and up to 30,000 characters of retained extracted content per submitted document. It excludes failed preparation rows and does not write request/response JSON sidecars or logs.
 
-Protect terminal history and future output folders according to the sensitivity of the source documents.
+Protect terminal history and selected Excel output folders according to the sensitivity of the source documents.

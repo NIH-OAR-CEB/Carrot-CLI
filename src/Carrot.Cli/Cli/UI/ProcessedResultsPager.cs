@@ -162,7 +162,7 @@ internal sealed class ProcessedResultsPager
             + $"[yellow]Unassigned: {batch.UnassignedCount:N0}[/]  "
             + $"[grey]Memberships: {batch.MembershipCount:N0}[/]");
         _console.MarkupLine($"[grey]Endpoint: {Markup.Escape(batch.Endpoint.AbsoluteUri)}[/]");
-        _console.MarkupLine("[grey]Scores are relative only within this response. No files were written.[/]");
+        _console.MarkupLine("[grey]Scores are relative only within this response. No file is written unless Excel export is selected.[/]");
         _console.MarkupLine("[grey]Press Escape to return to Batch Actions.[/]");
 
         #endregion

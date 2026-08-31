@@ -1,6 +1,6 @@
 # Process Documents
 
-The interactive Process Documents workflow prepares, reviews, clusters, and correlates source documents without writing output artifacts.
+The interactive Process Documents workflow prepares, reviews, clusters, and correlates source documents. Processing itself writes nothing automatically; the latest success can be explicitly saved to Excel.
 
 ## Build the input batch
 
@@ -26,7 +26,9 @@ Batch Actions provide **View Prepared Results**, **Preview JSON Package**, **Pro
 
 Process Prepared Items prompts for a service endpoint ending exactly in `/service`, with `http://localhost:8080/service` prefilled but never persisted. The workflow validates exact `Lingo` and `English` identifiers through `/list`, then sends every ready document's complete extracted title and text in the exact previewed `/cluster` package. All ready documents stay in one request because splitting them would change clustering semantics. Redirects are rejected so content is not forwarded unexpectedly.
 
-Successful processing opens five-document result pages automatically. Each row shows its submitted Carrot index, source/title, assigned or unassigned status, membership count, category paths, and unrounded scores. Memberships can overlap and can be nested. Empty cluster results are valid and show every document as unassigned. Next Page is the default whenever available; Previous Page and Escape/Back are supported. A success adds **View Processed Results**. A later failure leaves that previous success and the prepared batch available. No Excel, JSON, or log files are created. Carrot2 generally works best with roughly 100–1,000 concise documents; this is guidance, not a runtime limit.
+Successful processing opens five-document result pages automatically. Each row shows its submitted Carrot index, source/title, assigned or unassigned status, membership count, category paths, and unrounded scores. Memberships can overlap and can be nested. Empty cluster results are valid and show every document as unassigned. Next Page is the default whenever available; Previous Page and Escape/Back are supported. A success adds **View Processed Results** and **Save Processed Results to Excel**. A later failure leaves that previous success and the prepared batch available.
+
+Excel export accepts a quoted or unquoted `.xlsx` path under an existing directory and confirms before replacing a file. It atomically writes one `Results` row per submitted document, including unassigned documents, with source paths, hashes, up to 30,000 extracted characters, and membership details. Failed preparation rows, JSON sidecars, and logs are not included. A declined or failed save leaves both the destination and retained result unchanged. Carrot2 generally works best with roughly 100–1,000 concise documents; this is guidance, not a runtime limit.
 
 Start Over and Back require confirmation before discarding extracted content.
 

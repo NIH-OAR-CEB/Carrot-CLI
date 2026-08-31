@@ -1,6 +1,6 @@
 # Carrot CLI
 
-Carrot CLI is a .NET 10 Windows command-line client compatible with the Carrot 4.8.6 Document Clustering Server API. Its interactive **Process Documents** workflow collects files, folders, and ZIP archives, extracts and reviews searchable text, validates `Lingo`/`English` through `GET /list`, submits the exact previewed package through `POST /cluster`, and displays correlated results without writing files.
+Carrot CLI is a .NET 10 Windows command-line client compatible with the Carrot 4.8.6 Document Clustering Server API. Its interactive **Process Documents** workflow collects files, folders, and ZIP archives, extracts and reviews searchable text, validates `Lingo`/`English` through `GET /list`, submits the exact previewed package through `POST /cluster`, displays correlated results, and can explicitly save the latest success to Excel.
 
 ## Planned commands
 
@@ -26,7 +26,7 @@ C:\Data\single-report.pdf
 
 Before preparation, queued paths can be removed and folder recursion can be enabled. Preparation retains the first occurrence of duplicate sources, safely expands ZIPs, hashes and extracts valid documents, and keeps file-level failures visible. Results are shown five rows at a time with status, source, size, extracted character count, a short content preview, and any error. Press **Escape** from the pager to return to Batch Actions. **Preview JSON Package** pretty-prints the exact `/cluster` body and displays it through screen-sized pages, including the configured language and algorithm plus every ready document's full title and content. Long JSON strings are visually wrapped with `↪`; the value is unchanged. Next Page is the default when available, and Escape returns to Batch Actions. The preview excludes client-only paths and hashes, sends nothing, and writes no file.
 
-**Process Prepared Items** prompts for an absolute HTTP/HTTPS endpoint ending in `/service`, prefilled with `http://localhost:8080/service`. The value is not persisted. Processing sends every ready document's complete extracted title and text to that endpoint in one request after exact `Lingo`/`English` validation. Redirects are rejected, transient stateless failures receive at most two retries within one 120-second operation budget, and failures retain the prepared batch and any previous successful result. Successful results open automatically in five-document pages showing submitted index, source/title, assigned or unassigned status, membership count, nested/overlapping category paths, and unrounded scores. Empty cluster arrays are valid and make every document unassigned. **View Processed Results** reopens the latest success. No Excel report, JSON sidecar, log artifact, or other file is written.
+**Process Prepared Items** prompts for an absolute HTTP/HTTPS endpoint ending in `/service`, prefilled with `http://localhost:8080/service`. The value is not persisted. Processing sends every ready document's complete extracted title and text to that endpoint in one request after exact `Lingo`/`English` validation. Redirects are rejected, transient stateless failures receive at most two retries within one 120-second operation budget, and failures retain the prepared batch and any previous successful result. Successful results open automatically in five-document pages showing submitted index, source/title, assigned or unassigned status, membership count, nested/overlapping category paths, and unrounded scores. Empty cluster arrays are valid and make every document unassigned. **View Processed Results** reopens the latest success. **Save Processed Results to Excel** accepts a quoted or unquoted `.xlsx` path, confirms before overwrite, and atomically saves the retained success. Processing itself still writes nothing, and interactive export creates no JSON sidecar or log.
 
 Carrot2 generally works best with roughly 100–1,000 concise documents. This is guidance only; the CLI does not enforce that range or split a prepared batch because separate calls would change clustering semantics.
 
@@ -38,7 +38,7 @@ The preamble source is [`docs/application-preamble.md`](docs/application-preambl
 
 ```text
 Main Menu
-|- Process Documents -> Add/Remove Paths -> Prepare -> Review Pages -> JSON Preview / Process / Result Pages
+|- Process Documents -> Add/Remove Paths -> Prepare -> Review Pages -> JSON Preview / Process / Result Pages / Excel Export
 |- Preview Request -> Execute | Help | Back
 |- Server Information -> Execute | Help | Back
 |- Help
@@ -48,9 +48,9 @@ Main Menu
 
 Available help topics are getting started, process, preview, server information, commands/options, supported formats, extraction rules, clustering settings, output columns, Task Scheduler, exit codes, privacy, and troubleshooting.
 
-## Supported input and planned artifacts
+## Supported input and output
 
-Interactive preparation accepts individual files, folders, and ZIP archives containing `.docx`, `.xlsx`, `.pptx`, `.txt`, `.md`, and searchable `.pdf` files. Each successfully prepared source becomes one in-memory Carrot document; corrupt, encrypted, image-only, unreadable, and empty documents remain visible as failed rows. JSON package preview writes the complete request to terminal scrollback only. Interactive processing sends that request to the selected endpoint and retains the response only in memory. Excel, JSON request/response sidecars, and log artifacts remain planned for later milestones.
+Interactive preparation accepts individual files, folders, and ZIP archives containing `.docx`, `.xlsx`, `.pptx`, `.txt`, `.md`, and searchable `.pdf` files. Each successfully prepared source becomes one in-memory Carrot document; corrupt, encrypted, image-only, unreadable, and empty documents remain visible as failed rows. JSON package preview writes the complete request to terminal scrollback only. Interactive processing sends that request to the selected endpoint and retains the response in memory. An explicit Excel export writes one `Results` row per submitted document with paths, hashes, up to 30,000 extracted characters, and memberships; failed preparation rows are not included. JSON request/response sidecars and log artifacts remain planned for later milestones.
 
 See [CLI reference](docs/cli-reference.md), [extraction rules](docs/extraction-rules.md), [output format](docs/output-format.md), [Task Scheduler guidance](docs/task-scheduler.md), and [troubleshooting](docs/troubleshooting.md).
 
@@ -62,4 +62,4 @@ dotnet build .\Carrot-CLI.slnx --no-restore
 dotnet test .\Carrot-CLI.slnx --no-build --no-restore
 ```
 
-The active test suite verifies command metadata, preamble loading, interactive navigation, quoted paths, folder and ZIP safety, all supported extractors, deduplication, preparation outcomes, endpoint validation, HTTP request contracts, redirect/retry/timeout/cancellation behavior, recursive membership mapping, source correlation, retained-result state, paging/Escape behavior, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Only named-command, architecture-scanner, and persisted-report acceptance tests remain deferred.
+The active test suite verifies command metadata, preamble loading, interactive navigation, quoted paths, folder and ZIP safety, all supported extractors, deduplication, preparation outcomes, endpoint validation, HTTP request contracts, redirect/retry/timeout/cancellation behavior, recursive membership mapping, source correlation, retained-result state, paging/Escape behavior, output-path and overwrite decisions, deterministic report mapping, atomic formula-safe workbooks, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Named-command and architecture-scanner acceptances remain deferred.

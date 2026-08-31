@@ -6,7 +6,7 @@ namespace Carrot.Cli.Reporting;
 /// </summary>
 /// <remarks>
 /// Failed extraction rows retain source metadata and an empty Carrot document index.
-/// Excel-bound strings are future-formatted as text to prevent formula evaluation.
+/// Excel-bound strings are formatted as text to prevent formula evaluation.
 /// </remarks>
 internal sealed record ReportRow
 {

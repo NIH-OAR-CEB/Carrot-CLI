@@ -21,7 +21,7 @@
 
 # Welcome to Carrot CLI
 
-Carrot CLI is a guided Windows command-line client for preparing and clustering documents with the Carrot 4.8.6 Document Clustering Server. Interactive preparation discovers supported files, extracts searchable text, and displays reviewable rows. Interactive processing sends the exact previewed package to a selected endpoint and keeps correlated results in memory without writing files.
+Carrot CLI is a guided Windows command-line client for preparing and clustering documents with the Carrot 4.8.6 Document Clustering Server. Interactive preparation discovers supported files, extracts searchable text, and displays reviewable rows. Interactive processing sends the exact previewed package to a selected endpoint, retains correlated results, and can explicitly save the latest success to Excel.
 
 ## Getting Started
 
@@ -30,6 +30,7 @@ Carrot CLI is a guided Windows command-line client for preparing and clustering 
 3. Press **Escape** to leave paging and use the retained Batch Actions.
 4. Select **Preview JSON Package** to inspect the complete pretty-printed local request one page at a time without sending or saving it.
 5. Select **Process Prepared Items**, confirm the service endpoint, and review assigned or unassigned results.
-6. Select **Help** from any menu for quoted-path, format, extraction, clustering, and privacy guidance.
+6. Select **Save Processed Results to Excel** to choose a `.xlsx` path and explicitly persist the latest success.
+7. Select **Help** from any menu for quoted-path, format, extraction, clustering, output, and privacy guidance.
 
-Processing sends every ready document's complete extracted text to the selected endpoint. Endpoint values and successful results remain only in memory, and this workflow writes no Excel, JSON, or log files. Preview Request, Server Information, and named operational commands remain deferred.
+Processing sends every ready document's complete extracted text to the selected endpoint. It does not write files automatically. Explicit Excel export includes source paths, hashes, memberships, and up to 30,000 extracted characters per submitted document; it writes no JSON sidecar or log. Preview Request, Server Information, and named operational commands remain deferred.

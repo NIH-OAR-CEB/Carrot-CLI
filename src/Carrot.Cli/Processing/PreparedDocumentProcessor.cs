@@ -20,25 +20,30 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
     private readonly ClusterRequestFactory _requestFactory;
     private readonly ICarrotApiClient _apiClient;
     private readonly ClusterMembershipMapper _membershipMapper;
+    private readonly IRunIdProvider _runIdProvider;
 
     /**************************************************************/
     /// <summary>Initializes prepared-item processing with its request, HTTP, and mapping boundaries.</summary>
     /// <param name="requestFactory">The shared preview and submission request factory.</param>
     /// <param name="apiClient">The host-managed Carrot HTTP boundary.</param>
     /// <param name="membershipMapper">The recursive membership validator and mapper.</param>
+    /// <param name="runIdProvider">The successful-run correlation identifier provider.</param>
     public PreparedDocumentProcessor(
         ClusterRequestFactory requestFactory,
         ICarrotApiClient apiClient,
-        ClusterMembershipMapper membershipMapper)
+        ClusterMembershipMapper membershipMapper,
+        IRunIdProvider runIdProvider)
     {
         #region implementation
 
         ArgumentNullException.ThrowIfNull(requestFactory);
         ArgumentNullException.ThrowIfNull(apiClient);
         ArgumentNullException.ThrowIfNull(membershipMapper);
+        ArgumentNullException.ThrowIfNull(runIdProvider);
         _requestFactory = requestFactory;
         _apiClient = apiClient;
         _membershipMapper = membershipMapper;
+        _runIdProvider = runIdProvider;
 
         #endregion
     }
@@ -123,6 +128,7 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
 
         return OperationResult<ProcessedDocumentBatch>.Success(new ProcessedDocumentBatch
         {
+            RunId = _runIdProvider.Create(),
             Endpoint = request.Endpoint,
             Request = clusterRequest,
             Response = response,

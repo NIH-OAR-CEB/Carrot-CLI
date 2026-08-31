@@ -36,7 +36,8 @@ public sealed class ProcessDocumentsMenuTests
             var preparation = new CapturingPreparationWorkflow(createReadyResult(inputPath, 1));
             var processor = new QueuedPreparedDocumentProcessor();
             processor.EnqueueSuccess();
-            var menu = createMenu(console, preparation, processor);
+            var exporter = new CapturingProcessedResultsExporter();
+            var menu = createMenu(console, preparation, processor, exporter);
             queuePreparation(console, inputPath);
             console.Input.PushKey(ConsoleKey.Escape); // Leave automatic prepared results.
             pushDownKeys(console, 2);
@@ -46,7 +47,11 @@ public sealed class ProcessDocumentsMenuTests
             pushDownKeys(console, 1);
             console.Input.PushKey(ConsoleKey.Enter); // View Processed Results.
             console.Input.PushKey(ConsoleKey.Escape);
-            pushDownKeys(console, 6);
+            pushDownKeys(console, 2);
+            console.Input.PushKey(ConsoleKey.Enter); // Save Processed Results to Excel.
+            var outputPath = Path.Combine(root, "processed results.xlsx");
+            console.Input.PushTextWithEnter($"\"{outputPath}\"");
+            pushDownKeys(console, 7);
             console.Input.PushKey(ConsoleKey.Enter); // Back to Main Menu.
             console.Input.PushTextWithEnter("y");
 
@@ -62,8 +67,14 @@ public sealed class ProcessDocumentsMenuTests
             Assert.Contains("complete extracted text will be sent", console.Output, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Processing: Success", console.Output, StringComparison.Ordinal);
             Assert.Contains("View Processed Results", console.Output, StringComparison.Ordinal);
+            Assert.Contains("Save Processed Results to Excel", console.Output, StringComparison.Ordinal);
             Assert.True(countOccurrences(console.Output, "Processed Results") >= 2);
-            Assert.Contains("No files were written", console.Output, StringComparison.Ordinal);
+            Assert.DoesNotContain("No files were written", console.Output, StringComparison.Ordinal);
+            var exportRequest = Assert.Single(exporter.Requests);
+            Assert.Same(processor.SuccessfulBatches[0], exportRequest.Batch);
+            Assert.Equal(outputPath, exportRequest.OutputPath);
+            Assert.False(exportRequest.Overwrite);
+            Assert.Contains("Excel report saved", console.Output, StringComparison.Ordinal);
         }
         finally
         {
@@ -98,7 +109,7 @@ public sealed class ProcessDocumentsMenuTests
             console.Input.PushTextWithEnter("https://carrot.example/not-service");
             console.Input.PushTextWithEnter("https://carrot.example/service/");
             console.Input.PushKey(ConsoleKey.Escape);
-            pushDownKeys(console, 6);
+            pushDownKeys(console, 7);
             console.Input.PushKey(ConsoleKey.Enter);
             console.Input.PushTextWithEnter("y");
 
@@ -137,20 +148,24 @@ public sealed class ProcessDocumentsMenuTests
             var processor = new QueuedPreparedDocumentProcessor();
             processor.EnqueueSuccess();
             processor.EnqueueFailure("Carrot is temporarily unavailable.");
-            var menu = createMenu(console, preparation, processor);
+            var exporter = new CapturingProcessedResultsExporter();
+            var menu = createMenu(console, preparation, processor, exporter);
             queuePreparation(console, inputPath);
             console.Input.PushKey(ConsoleKey.Escape);
             pushDownKeys(console, 2);
             console.Input.PushKey(ConsoleKey.Enter); // First process.
             console.Input.PushKey(ConsoleKey.Enter);
             console.Input.PushKey(ConsoleKey.Escape);
-            pushDownKeys(console, 3);
+            pushDownKeys(console, 4);
             console.Input.PushKey(ConsoleKey.Enter); // Reprocess.
             console.Input.PushKey(ConsoleKey.Enter);
             pushDownKeys(console, 1);
             console.Input.PushKey(ConsoleKey.Enter); // View retained processed result.
             console.Input.PushKey(ConsoleKey.Escape);
-            pushDownKeys(console, 6);
+            pushDownKeys(console, 2);
+            console.Input.PushKey(ConsoleKey.Enter); // Export retained processed result.
+            console.Input.PushTextWithEnter(Path.Combine(root, "retained.xlsx"));
+            pushDownKeys(console, 7);
             console.Input.PushKey(ConsoleKey.Enter);
             console.Input.PushTextWithEnter("y");
 
@@ -163,6 +178,7 @@ public sealed class ProcessDocumentsMenuTests
             Assert.Contains("Carrot is temporarily unavailable", console.Output, StringComparison.Ordinal);
             Assert.Contains("previous successful processed result remains available", console.Output, StringComparison.OrdinalIgnoreCase);
             Assert.True(countOccurrences(console.Output, "Processed Results") >= 2);
+            Assert.Same(processor.SuccessfulBatches[0], Assert.Single(exporter.Requests).Batch);
         }
         finally
         {
@@ -216,6 +232,7 @@ public sealed class ProcessDocumentsMenuTests
             Assert.Contains("Process Prepared Items (unavailable", console.Output, StringComparison.Ordinal);
             Assert.Contains("No successfully prepared documents are available to process", console.Output, StringComparison.Ordinal);
             Assert.DoesNotContain("Carrot service endpoint", console.Output, StringComparison.Ordinal);
+            Assert.DoesNotContain("Save Processed Results to Excel", console.Output, StringComparison.Ordinal);
         }
         finally
         {
@@ -342,7 +359,8 @@ public sealed class ProcessDocumentsMenuTests
     private static ProcessDocumentsMenu createMenu(
         TestConsole console,
         IDocumentPreparationWorkflow workflow,
-        IPreparedDocumentProcessor processor)
+        IPreparedDocumentProcessor processor,
+        IProcessedResultsExporter? exporter = null)
     {
         #region implementation
 
@@ -370,6 +388,10 @@ public sealed class ProcessDocumentsMenuTests
             new EndpointResolver(),
             processor,
             new ProcessedResultsPager(console, options),
+            new ProcessedResultsExportFlow(
+                console,
+                new ExcelOutputPathResolver(),
+                exporter ?? new CapturingProcessedResultsExporter()),
             options);
 
         #endregion
@@ -472,6 +494,7 @@ public sealed class ProcessDocumentsMenuTests
             .ToArray();
         return new ProcessedDocumentBatch
         {
+            RunId = Guid.Parse("11111111-2222-3333-4444-555555555555"),
             Endpoint = request.Endpoint,
             Request = clusterRequest,
             Response = new ClusterResponse(),
@@ -619,12 +642,21 @@ public sealed class ProcessDocumentsMenuTests
         internal List<ProcessPreparedItemsRequest> Requests { get; } = [];
 
         /**************************************************************/
+        /// <summary>Gets every successful processed batch returned by the fake.</summary>
+        internal List<ProcessedDocumentBatch> SuccessfulBatches { get; } = [];
+
+        /**************************************************************/
         /// <summary>Queues one success derived from the actual retained batch.</summary>
         internal void EnqueueSuccess()
         {
             #region implementation
 
-            _results.Enqueue(request => OperationResult<ProcessedDocumentBatch>.Success(createProcessedBatch(request)));
+            _results.Enqueue(request =>
+            {
+                var batch = createProcessedBatch(request);
+                SuccessfulBatches.Add(batch);
+                return OperationResult<ProcessedDocumentBatch>.Success(batch);
+            });
 
             #endregion
         }
@@ -662,6 +694,33 @@ public sealed class ProcessDocumentsMenuTests
             }
 
             return Task.FromResult(_results.Dequeue()(request));
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Captures explicit Excel export requests and reports their normalized paths as saved.</summary>
+    private sealed class CapturingProcessedResultsExporter : IProcessedResultsExporter
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Gets every export request in invocation order.</summary>
+        internal List<SaveProcessedResultsRequest> Requests { get; } = [];
+
+        /**************************************************************/
+        /// <summary>Captures one request and returns its path as a successful save.</summary>
+        public Task<OperationResult<string>> SaveAsync(
+            SaveProcessedResultsRequest request,
+            CancellationToken cancellationToken)
+        {
+            #region implementation
+
+            Requests.Add(request);
+            return Task.FromResult(OperationResult<string>.Success(request.OutputPath));
 
             #endregion
         }

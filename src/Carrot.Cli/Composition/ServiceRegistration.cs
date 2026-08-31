@@ -6,6 +6,7 @@ using Carrot.Cli.Extraction;
 using Carrot.Cli.Extraction.Extractors;
 using Carrot.Cli.Input;
 using Carrot.Cli.Processing;
+using Carrot.Cli.Reporting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -17,8 +18,8 @@ namespace Carrot.Cli.Composition;
 /// Defines the composition-root registration boundary for all Carrot CLI features.
 /// </summary>
 /// <remarks>
-/// Interactive preparation and in-memory Carrot processing registrations are active. Named
-/// operational commands and report persistence remain deferred until their later milestones.
+/// Interactive preparation, in-memory Carrot processing, and explicit processed-result Excel
+/// export registrations are active. Named operational commands and JSON artifacts remain deferred.
 /// </remarks>
 /// <seealso cref="CarrotCliOptions"/>
 internal static class ServiceRegistration
@@ -63,6 +64,7 @@ internal static class ServiceRegistration
         services.AddSingleton<ClusterRequestFactory>();
         services.AddSingleton<EndpointResolver>();
         services.AddSingleton<ClusterMembershipMapper>();
+        services.AddSingleton<IRunIdProvider, SystemRunIdProvider>();
         services.AddTransient<IPreparedDocumentProcessor, PreparedDocumentProcessor>();
         services.AddHttpClient<ICarrotApiClient, CarrotApiClient>(client =>
             {
@@ -85,6 +87,12 @@ internal static class ServiceRegistration
         services.AddTransient<PreparedResultsPager>();
         services.AddTransient<PreparedJsonPackagePager>();
         services.AddTransient<ProcessedResultsPager>();
+        services.AddSingleton<AtomicFileWriter>();
+        services.AddSingleton<ExcelOutputPathResolver>();
+        services.AddSingleton<ProcessedDocumentReportMapper>();
+        services.AddSingleton<IExcelReportWriter, ExcelReportWriter>();
+        services.AddTransient<IProcessedResultsExporter, ProcessedResultsExporter>();
+        services.AddTransient<ProcessedResultsExportFlow>();
         services.AddTransient<ProcessDocumentsMenu>();
         services.AddTransient<InteractiveMenu>();
 

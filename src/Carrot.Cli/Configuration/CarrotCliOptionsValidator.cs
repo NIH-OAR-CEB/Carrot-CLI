@@ -35,6 +35,11 @@ internal sealed class CarrotCliOptionsValidator : IValidateOptions<CarrotCliOpti
         validatePositive(options.HttpTimeoutSeconds, nameof(options.HttpTimeoutSeconds), failures);
         validateNonnegative(options.TransientRetryCount, nameof(options.TransientRetryCount), failures);
         validatePositive(options.ContentPreviewCharacterLimit, nameof(options.ContentPreviewCharacterLimit), failures);
+        if (options.ContentPreviewCharacterLimit > 32_767)
+        {
+            failures.Add($"{nameof(options.ContentPreviewCharacterLimit)} must not exceed Excel's 32,767-character cell limit.");
+        }
+
         validatePositive(options.PreparedResultsPageSize, nameof(options.PreparedResultsPageSize), failures);
         validatePositive(options.ConsolePreviewCharacterLimit, nameof(options.ConsolePreviewCharacterLimit), failures);
 

@@ -18,6 +18,7 @@ public sealed class PreparedDocumentProcessorTests
     #region implementation
 
     private static readonly Uri Endpoint = new("http://localhost:8080/service");
+    private static readonly Guid ExpectedRunId = Guid.Parse("11111111-2222-3333-4444-555555555555");
 
     /**************************************************************/
     /// <summary>Verifies list precedes cluster and response indexes address prepared order rather than source ordinals.</summary>
@@ -53,7 +54,8 @@ public sealed class PreparedDocumentProcessorTests
         var processor = new PreparedDocumentProcessor(
             requestFactory,
             apiClient,
-            new ClusterMembershipMapper());
+            new ClusterMembershipMapper(),
+            new StubRunIdProvider(ExpectedRunId));
         var preparedBatch = createBatchWithFailedSourceGaps();
 
         // Act
@@ -71,6 +73,7 @@ public sealed class PreparedDocumentProcessorTests
         Assert.Equal(["list", "cluster"], apiClient.Calls);
         Assert.NotNull(apiClient.SubmittedRequest);
         Assert.Same(apiClient.SubmittedRequest, result.Value!.Request);
+        Assert.Equal(ExpectedRunId, result.Value.RunId);
         Assert.Equal(["ready-one", "ready-three"], result.Value.Request.Documents.Select(document => document.Title));
         Assert.Collection(
             result.Value.Rows,
@@ -234,7 +237,8 @@ public sealed class PreparedDocumentProcessorTests
         return new PreparedDocumentProcessor(
             new ClusterRequestFactory(Options.Create(new CarrotCliOptions())),
             apiClient,
-            new ClusterMembershipMapper());
+            new ClusterMembershipMapper(),
+            new StubRunIdProvider(ExpectedRunId));
 
         #endregion
     }
@@ -440,6 +444,41 @@ public sealed class PreparedDocumentProcessorTests
             Assert.Null(template);
             Assert.Null(indent);
             return Task.FromResult(ClusterResult);
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Returns one deterministic successful-run correlation identifier.</summary>
+    private sealed class StubRunIdProvider : IRunIdProvider
+    {
+        #region implementation
+
+        private readonly Guid _runId;
+
+        /**************************************************************/
+        /// <summary>Initializes the provider with the identifier returned by every request.</summary>
+        /// <param name="runId">The deterministic run identifier.</param>
+        internal StubRunIdProvider(Guid runId)
+        {
+            #region implementation
+
+            _runId = runId;
+
+            #endregion
+        }
+
+        /**************************************************************/
+        /// <summary>Returns the configured deterministic run identifier.</summary>
+        /// <returns>The configured identifier.</returns>
+        public Guid Create()
+        {
+            #region implementation
+
+            return _runId;
 
             #endregion
         }

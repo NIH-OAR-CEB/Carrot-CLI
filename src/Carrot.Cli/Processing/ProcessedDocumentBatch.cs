@@ -5,13 +5,17 @@ namespace Carrot.Cli.Processing;
 /**************************************************************/
 /// <summary>Retains one complete successful in-memory Carrot request, response, and correlation result.</summary>
 /// <remarks>
-/// This value is replaced only after a later complete success. No workbook, JSON sidecar, or
-/// other output artifact is written by the interactive prepared-items workflow.
+/// This value is replaced only after a later complete success. The interactive workflow can
+/// explicitly export it to Excel; JSON sidecars and log artifacts remain deferred.
 /// </remarks>
 /// <seealso cref="ProcessedDocumentRow"/>
 internal sealed record ProcessedDocumentBatch
 {
     #region implementation
+
+    /**************************************************************/
+    /// <summary>Gets the stable correlation identifier assigned to this complete successful run.</summary>
+    public Guid RunId { get; init; }
 
     /**************************************************************/
     /// <summary>Gets the normalized endpoint that processed the batch.</summary>

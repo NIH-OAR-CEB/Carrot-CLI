@@ -4,6 +4,7 @@ using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.Input;
 using Carrot.Cli.Processing;
+using Carrot.Cli.Reporting;
 using Microsoft.Extensions.Options;
 using Spectre.Console.Testing;
 using Xunit;
@@ -267,6 +268,10 @@ public sealed class InteractiveMenuTests
             new EndpointResolver(),
             new StubPreparedDocumentProcessor(),
             new ProcessedResultsPager(console, options),
+            new ProcessedResultsExportFlow(
+                console,
+                new ExcelOutputPathResolver(),
+                new StubProcessedResultsExporter()),
             options);
         return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer, processDocumentsMenu);
 
@@ -380,6 +385,34 @@ public sealed class InteractiveMenuTests
                 {
                     Code = "test.unexpected-processing",
                     Message = "Processing was not expected during navigation testing.",
+                    Severity = OperationMessageSeverity.Error
+                }]));
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Returns a controlled failure if navigation unexpectedly invokes Excel export.</summary>
+    private sealed class StubProcessedResultsExporter : IProcessedResultsExporter
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Returns a deterministic unexpected-export failure.</summary>
+        public Task<OperationResult<string>> SaveAsync(
+            SaveProcessedResultsRequest request,
+            CancellationToken cancellationToken)
+        {
+            #region implementation
+
+            return Task.FromResult(OperationResult<string>.Failure(
+                [new OperationMessage
+                {
+                    Code = "test.unexpected-export",
+                    Message = "Export was not expected during navigation testing.",
                     Severity = OperationMessageSeverity.Error
                 }]));
 
