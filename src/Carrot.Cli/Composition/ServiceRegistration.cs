@@ -17,8 +17,8 @@ namespace Carrot.Cli.Composition;
 /// Defines the composition-root registration boundary for all Carrot CLI features.
 /// </summary>
 /// <remarks>
-/// Interactive preparation registrations are active. Carrot HTTP, clustering, preview,
-/// and report persistence registrations remain deferred until their later milestones.
+/// Interactive preparation and in-memory Carrot processing registrations are active. Named
+/// operational commands and report persistence remain deferred until their later milestones.
 /// </remarks>
 /// <seealso cref="CarrotCliOptions"/>
 internal static class ServiceRegistration
@@ -61,6 +61,19 @@ internal static class ServiceRegistration
         services.AddSingleton<DocumentExtractionCoordinator>();
         services.AddSingleton<IDocumentPreparationWorkflow, DocumentPreparationWorkflow>();
         services.AddSingleton<ClusterRequestFactory>();
+        services.AddSingleton<EndpointResolver>();
+        services.AddSingleton<ClusterMembershipMapper>();
+        services.AddTransient<IPreparedDocumentProcessor, PreparedDocumentProcessor>();
+        services.AddHttpClient<ICarrotApiClient, CarrotApiClient>(client =>
+            {
+                // CarrotApiClient owns one overall timeout across retries.
+                client.Timeout = Timeout.InfiniteTimeSpan;
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                // Never forward complete extracted document content to a redirect target.
+                AllowAutoRedirect = false
+            });
 
         services.AddSingleton<HelpTopicCatalog>();
         services.AddSingleton<IHelpContentProvider, EmbeddedHelpContentProvider>();
@@ -71,6 +84,7 @@ internal static class ServiceRegistration
         services.AddTransient<AboutRenderer>();
         services.AddTransient<PreparedResultsPager>();
         services.AddTransient<PreparedJsonPackagePager>();
+        services.AddTransient<ProcessedResultsPager>();
         services.AddTransient<ProcessDocumentsMenu>();
         services.AddTransient<InteractiveMenu>();
 

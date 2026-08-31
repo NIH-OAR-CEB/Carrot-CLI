@@ -1,6 +1,9 @@
 using Carrot.Cli.Common;
+using Carrot.Cli.CarrotApi;
+using Carrot.Cli.Configuration;
 using Carrot.Cli.Input;
 using Carrot.Cli.Processing;
+using Microsoft.Extensions.Options;
 using Spectre.Console;
 
 namespace Carrot.Cli.Cli.UI;
@@ -8,13 +11,15 @@ namespace Carrot.Cli.Cli.UI;
 /**************************************************************/
 /// <summary>Coordinates editable path collection, preparation, review, and retained batch actions.</summary>
 /// <remarks>
-/// This menu intentionally stops at the process boundary. The pending process action reports the
-/// count of exact prepared documents but does not resolve HTTP, clustering, or reporting services.
-/// The JSON preview serializes the future request locally without sending or persisting it.
+/// The JSON preview and interactive processing action share one request factory. Successful
+/// processed results remain available until the prepared batch is discarded; a failed reprocess
+/// attempt leaves both the prepared batch and the latest successful response intact.
 /// </remarks>
 internal sealed class ProcessDocumentsMenu
 {
     #region implementation
+
+    private const string DefaultServiceEndpoint = "http://localhost:8080/service";
 
     private readonly IAnsiConsole _console;
     private readonly HelpRenderer _helpRenderer;
@@ -23,6 +28,10 @@ internal sealed class ProcessDocumentsMenu
     private readonly IDocumentPreparationWorkflow _preparationWorkflow;
     private readonly PreparedResultsPager _pager;
     private readonly PreparedJsonPackagePager _jsonPackagePager;
+    private readonly EndpointResolver _endpointResolver;
+    private readonly IPreparedDocumentProcessor _documentProcessor;
+    private readonly ProcessedResultsPager _processedResultsPager;
+    private readonly TimeSpan _httpTimeout;
 
     /**************************************************************/
     /// <summary>Defines actions available while assembling an ordered input-path list.</summary>
@@ -56,6 +65,10 @@ internal sealed class ProcessDocumentsMenu
         /**************************************************************/
         /// <summary>Reopens the prepared-results pager.</summary>
         ViewResults,
+
+        /**************************************************************/
+        /// <summary>Reopens the latest successful processed-results pager.</summary>
+        ViewProcessedResults,
 
         /**************************************************************/
         /// <summary>Displays the complete JSON request package for ready documents.</summary>
@@ -108,7 +121,11 @@ internal sealed class ProcessDocumentsMenu
         InputSourceResolver inputResolver,
         IDocumentPreparationWorkflow preparationWorkflow,
         PreparedResultsPager pager,
-        PreparedJsonPackagePager jsonPackagePager)
+        PreparedJsonPackagePager jsonPackagePager,
+        EndpointResolver endpointResolver,
+        IPreparedDocumentProcessor documentProcessor,
+        ProcessedResultsPager processedResultsPager,
+        IOptions<CarrotCliOptions> options)
     {
         #region implementation
 
@@ -119,6 +136,10 @@ internal sealed class ProcessDocumentsMenu
         ArgumentNullException.ThrowIfNull(preparationWorkflow);
         ArgumentNullException.ThrowIfNull(pager);
         ArgumentNullException.ThrowIfNull(jsonPackagePager);
+        ArgumentNullException.ThrowIfNull(endpointResolver);
+        ArgumentNullException.ThrowIfNull(documentProcessor);
+        ArgumentNullException.ThrowIfNull(processedResultsPager);
+        ArgumentNullException.ThrowIfNull(options);
         _console = console;
         _helpRenderer = helpRenderer;
         _pathNormalizer = pathNormalizer;
@@ -126,6 +147,10 @@ internal sealed class ProcessDocumentsMenu
         _preparationWorkflow = preparationWorkflow;
         _pager = pager;
         _jsonPackagePager = jsonPackagePager;
+        _endpointResolver = endpointResolver;
+        _documentProcessor = documentProcessor;
+        _processedResultsPager = processedResultsPager;
+        _httpTimeout = TimeSpan.FromSeconds(options.Value.HttpTimeoutSeconds);
 
         #endregion
     }
@@ -318,6 +343,7 @@ internal sealed class ProcessDocumentsMenu
         #region implementation
 
         var batch = result.Value!;
+        ProcessedDocumentBatch? latestProcessedBatch = null;
         while (true)
         {
             var processChoice = batch.Documents.Count > 0
@@ -326,12 +352,24 @@ internal sealed class ProcessDocumentsMenu
             var previewChoice = batch.Documents.Count > 0
                 ? BatchChoice.PreviewJson
                 : BatchChoice.PreviewJsonUnavailable;
+            var choices = new List<BatchChoice> { BatchChoice.ViewResults };
+            if (latestProcessedBatch is not null)
+            {
+                choices.Add(BatchChoice.ViewProcessedResults);
+            }
+
+            choices.Add(previewChoice);
+            choices.Add(processChoice);
+            choices.Add(BatchChoice.StartOver);
+            choices.Add(BatchChoice.Help);
+            choices.Add(BatchChoice.Back);
             var selected = await new SelectionPrompt<BatchChoice>()
                 .Title("[bold orange1]Prepared Batch Actions[/]")
                 .HighlightStyle(new Style(Color.Black, Color.Orange1))
                 .UseConverter(choice => choice switch
                 {
                     BatchChoice.ViewResults => "View Prepared Results",
+                    BatchChoice.ViewProcessedResults => "View Processed Results",
                     BatchChoice.PreviewJson => $"Preview JSON Package ({batch.Documents.Count:N0} document(s))",
                     BatchChoice.PreviewJsonUnavailable => "Preview JSON Package (unavailable — 0 ready)",
                     BatchChoice.Process => $"Process Prepared Items ({batch.Documents.Count:N0} ready)",
@@ -341,13 +379,7 @@ internal sealed class ProcessDocumentsMenu
                     BatchChoice.Back => "Back to Main Menu",
                     _ => choice.ToString()
                 })
-                .AddChoices(
-                    BatchChoice.ViewResults,
-                    previewChoice,
-                    processChoice,
-                    BatchChoice.StartOver,
-                    BatchChoice.Help,
-                    BatchChoice.Back)
+                .AddChoices(choices)
                 .AddCancelResult(BatchChoice.Back)
                 .ShowAsync(_console, cancellationToken)
                 .ConfigureAwait(false);
@@ -357,6 +389,9 @@ internal sealed class ProcessDocumentsMenu
                 case BatchChoice.ViewResults:
                     await _pager.ShowAsync(result, cancellationToken).ConfigureAwait(false);
                     break;
+                case BatchChoice.ViewProcessedResults:
+                    await _processedResultsPager.ShowAsync(latestProcessedBatch!, cancellationToken).ConfigureAwait(false);
+                    break;
                 case BatchChoice.PreviewJson:
                     await _jsonPackagePager.ShowAsync(batch, cancellationToken).ConfigureAwait(false);
                     break;
@@ -364,7 +399,10 @@ internal sealed class ProcessDocumentsMenu
                     _console.MarkupLine("[yellow]No successfully prepared documents are available to preview.[/]");
                     break;
                 case BatchChoice.Process:
-                    renderPendingProcess(batch.Documents.Count);
+                    latestProcessedBatch = await processPreparedItemsAsync(
+                        batch,
+                        latestProcessedBatch,
+                        cancellationToken).ConfigureAwait(false);
                     break;
                 case BatchChoice.ProcessUnavailable:
                     _console.MarkupLine("[yellow]No successfully prepared documents are available to process.[/]");
@@ -465,17 +503,82 @@ internal sealed class ProcessDocumentsMenu
     }
 
     /**************************************************************/
-    /// <summary>Displays a no-side-effect process handoff while retaining the reviewed batch.</summary>
-    private void renderPendingProcess(int readyCount)
+    /// <summary>Prompts for an endpoint, processes the retained batch, and preserves the last success on failure.</summary>
+    /// <param name="batch">The retained prepared batch.</param>
+    /// <param name="latestProcessedBatch">The previous complete success, when available.</param>
+    /// <param name="cancellationToken">The token signaling console cancellation.</param>
+    /// <returns>The new complete success, or the supplied previous success after failure.</returns>
+    private async Task<ProcessedDocumentBatch?> processPreparedItemsAsync(
+        PreparedDocumentBatch batch,
+        ProcessedDocumentBatch? latestProcessedBatch,
+        CancellationToken cancellationToken)
     {
         #region implementation
 
-        _console.Write(new Panel(
-                new Text($"{readyCount:N0} prepared document(s) are ready. Carrot submission and report generation remain pending implementation."))
-            .Header("[orange1]Process Prepared Items[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderStyle(new Style(Color.Yellow)));
-        _console.WriteLine();
+        var endpointText = await new TextPrompt<string>(
+                "Carrot service endpoint [grey](complete extracted text will be sent)[/]:")
+            .DefaultValue(DefaultServiceEndpoint)
+            .PromptStyle("yellow")
+            .Validate(value =>
+            {
+                var endpointResult = _endpointResolver.Resolve(value);
+                return endpointResult.Value is null
+                    ? ValidationResult.Error(endpointResult.Messages[0].Message)
+                    : ValidationResult.Success();
+            })
+            .ShowAsync(_console, cancellationToken)
+            .ConfigureAwait(false);
+        var endpoint = _endpointResolver.Resolve(endpointText).Value!;
+
+        _console.MarkupLine("[orange1]Validating Carrot configuration and processing the complete batch…[/]");
+        var result = await _documentProcessor.ProcessAsync(
+            new ProcessPreparedItemsRequest
+            {
+                Endpoint = endpoint,
+                PreparedBatch = batch,
+                Timeout = _httpTimeout
+            },
+            cancellationToken).ConfigureAwait(false);
+        renderProcessingSummary(result);
+
+        if (result.Value is null)
+        {
+            if (latestProcessedBatch is not null)
+            {
+                _console.MarkupLine("[yellow]The previous successful processed result remains available.[/]");
+            }
+
+            return latestProcessedBatch;
+        }
+
+        await _processedResultsPager.ShowAsync(result.Value, cancellationToken).ConfigureAwait(false);
+        return result.Value;
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Displays aggregate processing status and safe structured diagnostics.</summary>
+    /// <param name="result">The completed prepared-items processing result.</param>
+    private void renderProcessingSummary(OperationResult<ProcessedDocumentBatch> result)
+    {
+        #region implementation
+
+        if (result.Value is { } batch)
+        {
+            _console.MarkupLine(
+                $"[bold]Processing:[/] [green]Success[/]  "
+                + $"[green]Assigned: {batch.AssignedCount:N0}[/]  "
+                + $"[yellow]Unassigned: {batch.UnassignedCount:N0}[/]  "
+                + $"[grey]Memberships: {batch.MembershipCount:N0}[/]");
+            return;
+        }
+
+        _console.MarkupLine("[bold]Processing:[/] [red]Failure[/]");
+        foreach (var message in result.Messages)
+        {
+            _console.MarkupLine($"[red]• {Markup.Escape(message.Message)}[/]");
+        }
 
         #endregion
     }

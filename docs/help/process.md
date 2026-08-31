@@ -1,6 +1,6 @@
 # Process Documents
 
-The interactive Process Documents workflow prepares and reviews source documents without contacting a Carrot server or writing output artifacts.
+The interactive Process Documents workflow prepares, reviews, clusters, and correlates source documents without writing output artifacts.
 
 ## Build the input batch
 
@@ -18,10 +18,16 @@ Inputs are processed in entered order. Documents inside each folder or ZIP are o
 
 ## Review prepared rows
 
-Preparation safely expands ZIP archives, extracts searchable text, calculates SHA-256 hashes, and assigns contiguous document indexes to successful rows. Failed files remain visible but are excluded from the future processing collection.
+Preparation safely expands ZIP archives, extracts searchable text, calculates SHA-256 hashes, and assigns contiguous document indexes to successful rows. Failed files remain visible but are excluded from processing.
 
 Five rows are shown per page with source order, status, relative path, type, size, extracted character count, a 120-character whitespace-normalized content preview, and a concise error when applicable. Use **Next Page** and **Previous Page** to navigate; Next Page is listed first and selected by default whenever another page exists. Press **Escape** or select **Back to Batch Actions** to leave paging without discarding the prepared batch.
 
-Batch Actions provide **View Prepared Results**, **Preview JSON Package**, **Process Prepared Items**, **Start Over**, **Help**, and **Back to Main Menu**. JSON preview displays the exact pretty-printed request body with the configured default language and algorithm and every ready document's complete title/content. It uses screen-sized pages; Next Page is selected by default, Previous Page moves backward, and Escape returns to Batch Actions. A `↪` marker identifies a display-only continuation when a long JSON string is visually wrapped. The preview excludes local source metadata, contacts no server, and writes no file. Processing reports the number of ready documents but remains pending; it does not contact Carrot or create Excel, JSON, or log files. Start Over and Back require confirmation before discarding extracted content.
+Batch Actions provide **View Prepared Results**, **Preview JSON Package**, **Process Prepared Items**, **Start Over**, **Help**, and **Back to Main Menu**. JSON preview displays the exact pretty-printed request body with the configured default language and algorithm and every ready document's complete title/content. It uses screen-sized pages; Next Page is selected by default, Previous Page moves backward, and Escape returns to Batch Actions. A `↪` marker identifies a display-only continuation when a long JSON string is visually wrapped. The preview excludes local source metadata, contacts no server, and writes no file.
+
+Process Prepared Items prompts for a service endpoint ending exactly in `/service`, with `http://localhost:8080/service` prefilled but never persisted. The workflow validates exact `Lingo` and `English` identifiers through `/list`, then sends every ready document's complete extracted title and text in the exact previewed `/cluster` package. All ready documents stay in one request because splitting them would change clustering semantics. Redirects are rejected so content is not forwarded unexpectedly.
+
+Successful processing opens five-document result pages automatically. Each row shows its submitted Carrot index, source/title, assigned or unassigned status, membership count, category paths, and unrounded scores. Memberships can overlap and can be nested. Empty cluster results are valid and show every document as unassigned. Next Page is the default whenever available; Previous Page and Escape/Back are supported. A success adds **View Processed Results**. A later failure leaves that previous success and the prepared batch available. No Excel, JSON, or log files are created. Carrot2 generally works best with roughly 100–1,000 concise documents; this is guidance, not a runtime limit.
+
+Start Over and Back require confirmation before discarding extracted content.
 
 Use `carrot-cli help supported-formats`, `carrot-cli help extraction-rules`, and `carrot-cli help privacy` for preparation details. Named `process` command execution remains deferred.

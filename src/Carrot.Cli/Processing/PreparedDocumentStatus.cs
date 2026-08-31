@@ -1,7 +1,7 @@
 namespace Carrot.Cli.Processing;
 
 /**************************************************************/
-/// <summary>Defines whether one prepared-result row is eligible for future processing.</summary>
+/// <summary>Defines whether one prepared-result row is eligible for interactive Carrot processing.</summary>
 internal enum PreparedDocumentStatus
 {
     /**************************************************************/

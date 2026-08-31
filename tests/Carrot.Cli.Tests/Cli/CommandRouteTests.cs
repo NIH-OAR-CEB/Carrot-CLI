@@ -2,7 +2,9 @@ using Carrot.Cli.Cli;
 using Carrot.Cli.Cli.Commands;
 using Carrot.Cli.Cli.DependencyInjection;
 using Carrot.Cli.Cli.UI;
+using Carrot.Cli.CarrotApi;
 using Carrot.Cli.Composition;
+using Carrot.Cli.Processing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -153,7 +155,7 @@ public sealed class CommandRouteTests
     /// Verifies the production service collection can construct the complete interactive UI graph.
     /// </summary>
     [Fact]
-    public void ServiceRegistration_InteractiveGraph_ResolvesWithoutOperationalServices()
+    public void ServiceRegistration_InteractiveGraph_ResolvesPreparedProcessingServices()
     {
         #region implementation
 
@@ -171,6 +173,10 @@ public sealed class CommandRouteTests
         Assert.NotNull(menu);
         Assert.NotNull(provider.GetRequiredService<HelpRenderer>());
         Assert.NotNull(provider.GetRequiredService<AboutRenderer>());
+        Assert.NotNull(provider.GetRequiredService<ICarrotApiClient>());
+        Assert.NotNull(provider.GetRequiredService<IPreparedDocumentProcessor>());
+        Assert.NotNull(provider.GetRequiredService<EndpointResolver>());
+        Assert.NotNull(provider.GetRequiredService<ProcessedResultsPager>());
 
         #endregion
     }

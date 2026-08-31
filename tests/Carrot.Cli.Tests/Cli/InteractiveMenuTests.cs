@@ -12,7 +12,7 @@ namespace Carrot.Cli.Tests.Cli;
 
 /**************************************************************/
 /// <summary>
-/// Verifies interactive menu navigation without resolving any operational layout stub.
+/// Verifies main-menu navigation between implemented processing and deferred workflow routes.
 /// </summary>
 public sealed class InteractiveMenuTests
 {
@@ -263,7 +263,11 @@ public sealed class InteractiveMenuTests
             resolver,
             new StubDocumentPreparationWorkflow(),
             pager,
-            new PreparedJsonPackagePager(console, new ClusterRequestFactory(options)));
+            new PreparedJsonPackagePager(console, new ClusterRequestFactory(options)),
+            new EndpointResolver(),
+            new StubPreparedDocumentProcessor(),
+            new ProcessedResultsPager(console, options),
+            options);
         return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer, processDocumentsMenu);
 
         #endregion
@@ -350,6 +354,34 @@ public sealed class InteractiveMenuTests
                         Severity = OperationMessageSeverity.Error
                     }
                 ]));
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Returns a deterministic failure if navigation unexpectedly invokes processing.</summary>
+    private sealed class StubPreparedDocumentProcessor : IPreparedDocumentProcessor
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Returns a controlled processing failure.</summary>
+        public Task<OperationResult<ProcessedDocumentBatch>> ProcessAsync(
+            ProcessPreparedItemsRequest request,
+            CancellationToken cancellationToken)
+        {
+            #region implementation
+
+            return Task.FromResult(OperationResult<ProcessedDocumentBatch>.Failure(
+                [new OperationMessage
+                {
+                    Code = "test.unexpected-processing",
+                    Message = "Processing was not expected during navigation testing.",
+                    Severity = OperationMessageSeverity.Error
+                }]));
 
             #endregion
         }
