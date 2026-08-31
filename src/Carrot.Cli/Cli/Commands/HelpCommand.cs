@@ -56,12 +56,15 @@ internal sealed class HelpCommand : AsyncCommand<HelpCommand.HelpSettings>
     /// <param name="settings">The optional topic selection.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
     /// <returns>A task containing the help command exit code.</returns>
-    protected override Task<int> ExecuteAsync(CommandContext context, HelpSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(
+        CommandContext context,
+        HelpSettings settings,
+        CancellationToken cancellationToken)
     {
         #region implementation
 
-        var rendered = _renderer.Render(settings.Topic);
-        return Task.FromResult(rendered ? ExitCodes.Success : ExitCodes.InvalidConfiguration);
+        var rendered = await _renderer.RenderAsync(settings.Topic, cancellationToken).ConfigureAwait(false);
+        return rendered ? ExitCodes.Success : ExitCodes.InvalidConfiguration;
 
         #endregion
     }

@@ -20,6 +20,8 @@ carrot-cli --help
 carrot-cli help commands-options
 ```
 
+Long help topics use terminal-sized pages. Select **Next Page** or **Previous Page** to navigate, and select **Close Help** or press **Escape** to return. Redirected help output is emitted as one complete document without prompts.
+
 Noninteractive processing remains reserved for a later implementation milestone.
 
 ## Command-line usage

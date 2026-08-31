@@ -290,6 +290,7 @@ public sealed class InteractiveMenuTests
 
         var console = new TestConsole();
         console.Profile.Capabilities.Interactive = true;
+        console.Profile.Height = 200;
         return console;
 
         #endregion

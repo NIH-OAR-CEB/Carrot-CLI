@@ -199,6 +199,7 @@ public sealed class CommandRouteTests
 
         var services = createServices();
         var console = new TestConsole();
+        console.Profile.Height = 200;
         return new CommandAppTester(
             new TypeRegistrar(services),
             new CommandAppTesterSettings { TrimConsoleOutput = false },

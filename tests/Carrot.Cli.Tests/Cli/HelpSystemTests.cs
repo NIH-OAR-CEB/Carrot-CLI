@@ -101,7 +101,7 @@ public sealed class HelpSystemTests
     /// Verifies unknown help reports all valid keys without throwing.
     /// </summary>
     [Fact]
-    public void Render_UnknownTopic_ReturnsFalseAndListsTopics()
+    public async Task RenderAsync_UnknownTopic_ReturnsFalseAndListsTopics()
     {
         #region implementation
 
@@ -110,13 +110,108 @@ public sealed class HelpSystemTests
         var renderer = createHelpRenderer(console);
 
         // Act
-        var rendered = renderer.Render("not-a-topic");
+        var rendered = await renderer.RenderAsync(
+            "not-a-topic",
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.False(rendered);
         Assert.Contains("Unknown help topic", console.Output, StringComparison.Ordinal);
         Assert.Contains("getting-started", console.Output, StringComparison.Ordinal);
         Assert.Contains("troubleshooting", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Verifies long interactive help supports forward, backward, and Escape navigation without dumping later pages.
+    /// </summary>
+    [Fact]
+    public async Task RenderAsync_LongInteractiveTopic_SupportsNextPreviousAndEscape()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = new TestConsole();
+        console.Profile.Capabilities.Interactive = true;
+        console.Profile.Width = 80;
+        console.Profile.Height = 16;
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Escape);
+        var renderer = createHelpRenderer(console);
+
+        // Act
+        var rendered = await renderer.RenderAsync(
+            "process",
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(rendered);
+        Assert.Contains("Page 1/", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Page 2/", console.Output, StringComparison.Ordinal);
+        Assert.Equal(2, console.Output.Split("Page 1/", StringSplitOptions.None).Length - 1);
+        Assert.Contains("Help — Page 1 of", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("â", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Press Escape to close help", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start in: C:\\Tools\\Carrot CLI", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies short interactive topics render directly without requesting pager input.</summary>
+    [Fact]
+    public async Task RenderAsync_ShortInteractiveTopic_RendersWithoutPager()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = new TestConsole();
+        console.Profile.Capabilities.Interactive = true;
+        console.Profile.Width = 100;
+        console.Profile.Height = 100;
+        var renderer = createHelpRenderer(console);
+
+        // Act
+        var rendered = await renderer.RenderAsync(
+            "server-info",
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(rendered);
+        Assert.Contains("Server Information", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Page 1/", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Close Help", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies redirected help emits the complete topic without interactive pagination.</summary>
+    [Fact]
+    public async Task RenderAsync_LongNonInteractiveTopic_RendersCompleteDocument()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = new TestConsole();
+        console.Profile.Capabilities.Interactive = false;
+        console.Profile.Width = 80;
+        console.Profile.Height = 16;
+        var renderer = createHelpRenderer(console);
+
+        // Act
+        var rendered = await renderer.RenderAsync(
+            "process",
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(rendered);
+        Assert.Contains("Start in: C:\\Tools\\Carrot CLI", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Page 1/", console.Output, StringComparison.Ordinal);
 
         #endregion
     }

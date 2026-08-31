@@ -14,7 +14,7 @@ carrot-cli about
 carrot-cli --version
 ```
 
-No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. **Process Documents** opens an editable input list; **Preview Request** and **Server Information** retain their Execute, Help, and Back menus and still report `Pending Implementation`. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory.
+No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. **Process Documents** opens an editable input list; **Preview Request** and **Server Information** retain their Execute, Help, and Back menus and still report `Pending Implementation`. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory. Long help topics are divided into terminal-sized pages with Next Page, Previous Page, Close Help, and Escape navigation; redirected command output remains complete and unpaged.
 
 Within **Process Documents**, select **Add Path** once for each input. Paths may be unquoted or surrounded by matching single or double quotes, for example:
 

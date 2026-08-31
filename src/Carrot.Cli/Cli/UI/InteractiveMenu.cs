@@ -235,7 +235,7 @@ internal sealed class InteractiveMenu
                     _console.WriteLine();
                     break;
                 case WorkflowMenuChoice.Help:
-                    _helpRenderer.Render(helpTopic);
+                    await _helpRenderer.RenderAsync(helpTopic, cancellationToken).ConfigureAwait(false);
                     break;
                 case WorkflowMenuChoice.Back:
                     return;
@@ -279,7 +279,7 @@ internal sealed class InteractiveMenu
                 return;
             }
 
-            _helpRenderer.Render(((HelpTopic)selected).Key);
+            await _helpRenderer.RenderAsync(((HelpTopic)selected).Key, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion

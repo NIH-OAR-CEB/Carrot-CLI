@@ -2,6 +2,7 @@
 
 - **Interactive input unavailable:** run the executable in a terminal, or use `carrot-cli --help` for named command usage.
 - **Unknown help topic:** run `carrot-cli help` or select Help from the main menu to view valid topics.
+- **Help text is longer than the screen:** use **Next Page** and **Previous Page** to navigate, then select **Close Help** or press **Escape** to return.
 - **Quoted path is rejected:** use one path per Add Path action and matching surrounding single or double quotes.
 - **No supported documents:** direct files must use a supported extension; folders and ZIPs must contain at least one supported document.
 - **Partial preparation:** review failed rows and batch warnings. Ready rows remain eligible for Process Prepared Items.

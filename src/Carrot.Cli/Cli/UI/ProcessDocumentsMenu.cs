@@ -233,7 +233,7 @@ internal sealed class ProcessDocumentsMenu
                         break;
                     }
                 case SetupChoice.Help:
-                    _helpRenderer.Render("process");
+                    await _helpRenderer.RenderAsync("process", cancellationToken).ConfigureAwait(false);
                     break;
                 case SetupChoice.Back:
                     return;
@@ -442,7 +442,7 @@ internal sealed class ProcessDocumentsMenu
 
                     break;
                 case BatchChoice.Help:
-                    _helpRenderer.Render("process");
+                    await _helpRenderer.RenderAsync("process", cancellationToken).ConfigureAwait(false);
                     break;
                 case BatchChoice.Back:
                     if (await confirmDiscardAsync("Discard this prepared batch and return to Main Menu?", cancellationToken)
