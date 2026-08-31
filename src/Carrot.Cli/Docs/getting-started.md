@@ -21,3 +21,13 @@ carrot-cli help commands-options
 ```
 
 Noninteractive processing remains reserved for a later implementation milestone.
+
+## Command-line usage
+
+Open the Getting Started topic directly:
+
+```text
+Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
+Arguments: help getting-started
+Start in: C:\Tools\Carrot CLI
+```

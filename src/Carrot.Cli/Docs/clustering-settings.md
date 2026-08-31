@@ -12,3 +12,13 @@ Interactive Process Prepared Items uses a fixed previewed configuration for this
 Memberships may overlap or appear under nested cluster nodes. Multiple labels on one node use ` | ` and nested levels use ` > `. Scores are retained without rounding and are relative only within that response. Empty cluster arrays are valid and produce unassigned result rows.
 
 Carrot2 generally works best with roughly 100–1,000 concise documents. This recommendation is not enforced. Algorithm/template selection and parameter files remain deferred to later interactive or named-command milestones.
+
+## Command-line usage
+
+Display this help topic from an installed command line:
+
+```text
+Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
+Arguments: help clustering-settings
+Start in: C:\Tools\Carrot CLI
+```

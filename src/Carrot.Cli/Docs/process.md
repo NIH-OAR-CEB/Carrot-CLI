@@ -33,3 +33,13 @@ Excel export suggests a complete `Documents\carrot-results-YYYYMMDD-HHMMSS.xlsx`
 Start Over and Back require confirmation before discarding extracted content.
 
 Use `carrot-cli help supported-formats`, `carrot-cli help extraction-rules`, and `carrot-cli help privacy` for preparation details. Named `process` command execution remains deferred.
+
+## Command-line usage
+
+The named `process` route remains deferred; this example records its planned unattended syntax:
+
+```text
+Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
+Arguments: process --input "C:\Data\Documents" --endpoint "http://localhost:8080/service"
+Start in: C:\Tools\Carrot CLI
+```

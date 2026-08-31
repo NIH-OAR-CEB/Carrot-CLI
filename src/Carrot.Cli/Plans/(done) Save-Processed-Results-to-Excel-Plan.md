@@ -76,7 +76,7 @@ This uses the existing report schema and atomic writer because they are already 
 ### Workbook and atomic persistence
 
 - Implement `AtomicFileWriter.WriteAsync` with a uniquely named temporary file in the destination directory, `FileMode.CreateNew`, cooperative cancellation, flush before promotion, overwrite enforcement, and best-effort cleanup of the exact temporary sibling on success, failure, or cancellation. A failed write must leave an existing destination byte-for-byte unchanged and must not leave a temporary artifact.
-- Inject `AtomicFileWriter` into `ExcelReportWriter`. Validate the request, then create an `XLWorkbook` with exactly one `Results` sheet and the 23 headers already documented in `docs/output-format.md` and `docs/help/output-columns.md`.
+- Inject `AtomicFileWriter` into `ExcelReportWriter`. Validate the request, then create an `XLWorkbook` with exactly one `Results` sheet and the 23 headers already documented in `docs/output-format.md` and `src/Carrot.Cli/Docs/output-columns.md`.
 - Write rows in request order. Set every workbook-bound string cell explicitly to `XLDataType.Text` so leading `=`, `+`, `-`, or `@` values remain inert and display unchanged. Write integers, longs, and Booleans as native values.
 - Freeze the header row, enable filters, bold/style the header, wrap the content and membership columns, and apply bounded useful widths rather than auto-sizing against 30,000-character content. Preserve line breaks in paths/scores and do not add formulas, links, or external workbook connections.
 - Check cancellation before expensive workbook work and during row emission. Save the workbook into the atomic writer's temporary stream, then allow the atomic writer to promote it.
@@ -138,7 +138,7 @@ This uses the existing report schema and atomic writer because they are already 
    - Verify: build a host/service provider, resolve `ProcessDocumentsMenu` and each export abstraction, and confirm intended lifetimes where material.
 
 9. **Bring documentation and status assertions in line with the feature.**
-   - Files/symbols: `README.md`; `docs/application-preamble.md`; `docs/cli-reference.md`; `docs/output-format.md`; `docs/troubleshooting.md`; `docs/help/getting-started.md`; `docs/help/process.md`; `docs/help/privacy.md`; `docs/help/output-columns.md`; `docs/help/troubleshooting.md`; relevant assertions in `CommandRouteTests`, `InteractiveMenuTests`, and `ProcessDocumentsMenuTests`.
+   - Files/symbols: `README.md`; `docs/application-preamble.md`; `docs/cli-reference.md`; `docs/output-format.md`; `docs/troubleshooting.md`; `src/Carrot.Cli/Docs/getting-started.md`; `src/Carrot.Cli/Docs/process.md`; `src/Carrot.Cli/Docs/privacy.md`; `src/Carrot.Cli/Docs/output-columns.md`; `src/Carrot.Cli/Docs/troubleshooting.md`; relevant assertions in `CommandRouteTests`, `InteractiveMenuTests`, and `ProcessDocumentsMenuTests`.
    - Change: replace unconditional “no files are written” language with explicit-save behavior and document path, overwrite, privacy, workbook contents, and no-sidecar boundaries.
    - Why: exporting content and local identifiers is a privacy-relevant behavior and embedded help is the deployed user contract.
    - Verify: route/help tests find the new menu and guidance, and no active documentation still describes Excel as unavailable for the interactive processed-results workflow.

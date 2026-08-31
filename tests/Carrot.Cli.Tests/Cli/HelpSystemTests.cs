@@ -39,6 +39,36 @@ public sealed class HelpSystemTests
 
     /**************************************************************/
     /// <summary>
+    /// Verifies every embedded help topic includes a complete Windows command-line usage block.
+    /// </summary>
+    [Fact]
+    public void Catalog_AllTopicsContainCommandLineUsageExample()
+    {
+        #region implementation
+
+        // Arrange
+        var catalog = new HelpTopicCatalog();
+        var provider = new EmbeddedHelpContentProvider();
+
+        // Act and Assert
+        foreach (var topic in catalog.Topics)
+        {
+            var content = provider.Read(topic);
+            Assert.NotNull(content);
+            Assert.Contains("## Command-line usage", content, StringComparison.Ordinal);
+            Assert.Contains(
+                "Program/script: C:\\Tools\\Carrot CLI\\carrot-cli.exe",
+                content,
+                StringComparison.Ordinal);
+            Assert.Contains("Arguments:", content, StringComparison.Ordinal);
+            Assert.Contains("Start in: C:\\Tools\\Carrot CLI", content, StringComparison.Ordinal);
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
     /// Verifies help aliases normalize spaces, underscores, hyphens, and case consistently.
     /// </summary>
     /// <param name="input">The user-entered topic key or alias.</param>

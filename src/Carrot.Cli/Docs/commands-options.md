@@ -27,3 +27,13 @@ Preview uses the input, endpoint, clustering, timeout, output, recursive, and ov
 Server information accepts `--endpoint` and `--timeout-seconds` and will call `/list` when implemented.
 
 Named operational commands never prompt. Their implementation remains deferred; Help, About, Version, and interactive document preparation are active.
+
+## Command-line usage
+
+Display the complete command and option reference:
+
+```text
+Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
+Arguments: help commands-options
+Start in: C:\Tools\Carrot CLI
+```

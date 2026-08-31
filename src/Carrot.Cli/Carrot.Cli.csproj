@@ -26,7 +26,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="..\..\docs\help\*.md">
+    <EmbeddedResource Include="Docs\*.md">
       <LogicalName>Carrot.Cli.Help.%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
   </ItemGroup>

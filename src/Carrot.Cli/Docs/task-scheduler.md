@@ -1,5 +1,7 @@
 # Windows Task Scheduler
 
+## Command-line usage
+
 Task Scheduler must use a named, noninteractive command. Quote all paths and configure the executable folder as **Start in**.
 
 ```text

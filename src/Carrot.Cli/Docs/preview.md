@@ -9,3 +9,13 @@ In the current UI milestone:
 - **Back to Main Menu** leaves the workflow without side effects.
 
 Preview is intended for inspecting document ordering, extracted content, and clustering settings before a real run.
+
+## Command-line usage
+
+The named `preview` route remains deferred; this example records its planned unattended syntax:
+
+```text
+Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
+Arguments: preview --input "C:\Data\Documents" --endpoint "http://localhost:8080/service"
+Start in: C:\Tools\Carrot CLI
+```

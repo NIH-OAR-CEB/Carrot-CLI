@@ -13,3 +13,13 @@ Interactive preparation reads complete document content into application memory.
 - Excel export includes source paths, filenames, hashes, endpoint/settings, memberships, and up to 30,000 characters of retained extracted content. Documents with several memberships repeat that information on one row per category; unassigned documents retain one blank-category row. Export excludes failed preparation rows and does not write request/response JSON sidecars or logs.
 
 Protect terminal history and selected Excel output folders according to the sensitivity of the source documents.
+
+## Command-line usage
+
+Review privacy guidance before submitting sensitive documents:
+
+```text
+Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
+Arguments: help privacy
+Start in: C:\Tools\Carrot CLI
+```
