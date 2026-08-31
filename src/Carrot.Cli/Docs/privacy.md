@@ -11,8 +11,9 @@ Interactive preparation reads complete document content into application memory.
 - Processed memberships and the latest successful request/response remain in memory until the batch is discarded or the application exits.
 - Interactive processing writes no file automatically. **Save Processed Results to Excel** is a separate explicit action.
 - Excel export includes source paths, filenames, hashes, endpoint/settings, memberships, and up to 30,000 characters of retained extracted content. Documents with several memberships repeat that information on one row per category; unassigned documents retain one blank-category row. Export excludes failed preparation rows and does not write request/response JSON sidecars or logs.
+- Future named request artifacts can contain every submitted document's complete extracted title and content; response artifacts can contain the complete clustering response. The atomic writer is implemented, but no current named or interactive workflow invokes it until later command-orchestration milestones.
 
-Protect terminal history and selected Excel output folders according to the sensitivity of the source documents.
+Protect terminal history and selected Excel or future JSON output folders according to the sensitivity of the source documents.
 
 ## Command-line usage
 

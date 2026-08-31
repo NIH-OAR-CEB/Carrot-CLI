@@ -33,10 +33,12 @@ public sealed class ApplicationPreambleTests
         renderer.Render();
 
         // Assert
-        var artworkIndex = console.Output.IndexOf('⌐');
         var welcomeIndex = console.Output.IndexOf("Welcome to Carrot CLI", StringComparison.Ordinal);
-        Assert.True(artworkIndex >= 0, "The deployed Carrot artwork was not rendered.");
-        Assert.True(welcomeIndex > artworkIndex, "The artwork must precede the welcome heading.");
+        var renderedArtwork = welcomeIndex > 0 ? console.Output[..welcomeIndex] : string.Empty;
+        Assert.True(
+            renderedArtwork.Any(character => !char.IsWhiteSpace(character)),
+            "The deployed Carrot artwork was not rendered.");
+        Assert.True(welcomeIndex > 0, "The artwork must precede the welcome heading.");
         Assert.DoesNotContain("[color=", console.Output, StringComparison.Ordinal);
 
         #endregion

@@ -96,6 +96,7 @@ internal static class ServiceRegistration
         services.AddSingleton<ExcelOutputPathSuggester>();
         services.AddSingleton<ProcessedDocumentReportMapper>();
         services.AddSingleton<IExcelReportWriter, ExcelReportWriter>();
+        services.AddSingleton<IJsonArtifactWriter, JsonArtifactWriter>();
         services.AddTransient<IProcessedResultsExporter, ProcessedResultsExporter>();
         services.AddTransient<ProcessedResultsExportFlow>();
         services.AddTransient<ProcessDocumentsMenu>();

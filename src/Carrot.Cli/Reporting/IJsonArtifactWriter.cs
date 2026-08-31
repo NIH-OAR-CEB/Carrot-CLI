@@ -17,6 +17,11 @@ internal interface IJsonArtifactWriter
     /// <param name="overwrite">Whether an existing destination may be replaced.</param>
     /// <param name="cancellationToken">The token signaling cooperative cancellation.</param>
     /// <returns>A task representing serialization and atomic replacement.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is empty.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="artifact"/> is null.</exception>
+    /// <exception cref="IOException">Thrown when overwrite is rejected or persistence fails.</exception>
+    /// <exception cref="System.Text.Json.JsonException">Thrown when the artifact cannot be serialized.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when cancellation is requested.</exception>
     Task WriteAsync<TArtifact>(
         string path,
         TArtifact artifact,

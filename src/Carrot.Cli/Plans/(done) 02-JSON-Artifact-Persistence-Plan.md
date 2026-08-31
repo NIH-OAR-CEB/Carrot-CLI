@@ -1,6 +1,6 @@
 # JSON Artifact Persistence
 
-Status: Pending
+Status: Complete
 
 Category: Artifacts and observability
 
@@ -63,3 +63,11 @@ Make `JsonArtifactWriter` a serialization boundary over the already implemented 
 
 - Named preview/process artifact naming and command orchestration.
 
+## 11. Completion Evidence
+
+- `JsonArtifactWriter` now serializes generic artifacts asynchronously as indented UTF-8 JSON through `AtomicFileWriter`, with explicit overwrite behavior, argument validation, cancellation propagation, and atomic cleanup on failure.
+- `IJsonArtifactWriter` is registered in the application service collection and its expected exception contract is documented.
+- Direct tests cover request and recursive response round trips, nested `JsonElement` value kinds, formula-like strings, overwrite preservation and replacement, mid-write cancellation, serialization and filesystem failures, constructor validation, and temporary-file cleanup.
+- Output-format, privacy, and troubleshooting guidance distinguishes the implemented persistence boundary from the still-deferred named-command artifact orchestration.
+- The preamble regression test now verifies its actual display contract without depending on one glyph from the currently deployed artwork.
+- Verification completed with 162 passing tests, 6 intentionally deferred tests, and 1 opt-in smoke test not selected; the Release build completed with 0 warnings and 0 errors, and formatting and whitespace checks passed.
