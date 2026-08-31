@@ -42,6 +42,7 @@ internal static class ServiceRegistration
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddSingleton<IValidateOptions<CarrotCliOptions>, CarrotCliOptionsValidator>();
+        services.AddSingleton(configuration);
         services.AddOptions<CarrotCliOptions>()
             .Bind(configuration.GetSection("CarrotCli"))
             .ValidateOnStart();
@@ -63,6 +64,7 @@ internal static class ServiceRegistration
         services.AddSingleton<IDocumentPreparationWorkflow, DocumentPreparationWorkflow>();
         services.AddSingleton<ClusterRequestFactory>();
         services.AddSingleton<EndpointResolver>();
+        services.AddSingleton<RunSettingsResolver>();
         services.AddSingleton<ClusterMembershipMapper>();
         services.AddSingleton<IRunIdProvider, SystemRunIdProvider>();
         services.AddTransient<IPreparedDocumentProcessor, PreparedDocumentProcessor>();
@@ -84,6 +86,7 @@ internal static class ServiceRegistration
         services.AddTransient<ApplicationPreambleRenderer>();
         services.AddTransient<HelpRenderer>();
         services.AddTransient<AboutRenderer>();
+        services.AddTransient<ConsoleReporter>();
         services.AddTransient<PreparedResultsPager>();
         services.AddTransient<PreparedJsonPackagePager>();
         services.AddTransient<ProcessedResultsPager>();
