@@ -1,6 +1,8 @@
 using Carrot.Cli.Common;
+using Carrot.Cli.Configuration;
 using Carrot.Cli.Reporting;
 using ClosedXML.Excel;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Carrot.Cli.Tests.Reporting;
@@ -57,9 +59,9 @@ public sealed class ExcelReportWriterTests
                         ExtractedCharacterCount = 30_001,
                         ContentPreview = preview,
                         PreviewTruncated = true,
-                        CategoryCount = 2,
-                        CategoryPaths = $"Parent > Child{Environment.NewLine}@Other",
-                        CategoryScores = $"0.25{Environment.NewLine}",
+                        CategoryCount = 1,
+                        CategoryPaths = "Parent > Child",
+                        CategoryScores = "0.25",
                         CategoryMembershipsJson = "[{\"categoryPath\":\"=unsafe\"}]"
                     }
                 ]
@@ -96,6 +98,68 @@ public sealed class ExcelReportWriterTests
             Assert.DoesNotContain(
                 Directory.EnumerateFiles(root),
                 path => Path.GetFileName(path).StartsWith(".results.xlsx.", StringComparison.Ordinal));
+        }
+        finally
+        {
+            deleteTemporaryDirectory(root);
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies multiple memberships are exported as separate scalar-category worksheet rows.</summary>
+    [Fact]
+    public async Task WriteAsync_MultipleMemberships_WritesOneCategoryPerWorksheetRow()
+    {
+        #region implementation
+
+        var root = createTemporaryDirectory();
+        try
+        {
+            // Arrange
+            var outputPath = Path.Combine(root, "membership-rows.xlsx");
+            var memberships = new ClusterMembership[]
+            {
+                new()
+                {
+                    CarrotDocumentIndex = 0,
+                    Labels = ["First"],
+                    CategoryPath = "Parent > First",
+                    Score = 10.25D,
+                    Depth = 1
+                },
+                new()
+                {
+                    CarrotDocumentIndex = 0,
+                    Labels = ["Second"],
+                    CategoryPath = "Second",
+                    Score = null,
+                    Depth = 0
+                }
+            };
+            var batch = ReportingTestData.CreateProcessedBatch(memberships: memberships);
+            var mapper = new ProcessedDocumentReportMapper(Options.Create(new CarrotCliOptions()));
+            var request = mapper.Create(batch, outputPath, overwrite: false);
+            var writer = new ExcelReportWriter(new AtomicFileWriter());
+
+            // Act
+            await writer.WriteAsync(request, TestContext.Current.CancellationToken);
+
+            // Assert
+            using var workbook = new XLWorkbook(outputPath);
+            var worksheet = workbook.Worksheet("Results");
+            Assert.Equal(3, worksheet.LastRowUsed()!.RowNumber());
+            Assert.Equal(0D, worksheet.Cell(2, 8).GetDouble());
+            Assert.Equal(0D, worksheet.Cell(3, 8).GetDouble());
+            Assert.Equal(1D, worksheet.Cell(2, 20).GetDouble());
+            Assert.Equal(1D, worksheet.Cell(3, 20).GetDouble());
+            Assert.Equal("Parent > First", worksheet.Cell(2, 21).GetString());
+            Assert.Equal("Second", worksheet.Cell(3, 21).GetString());
+            Assert.Equal("10.25", worksheet.Cell(2, 22).GetString());
+            Assert.Equal(string.Empty, worksheet.Cell(3, 22).GetString());
+            Assert.DoesNotContain(Environment.NewLine, worksheet.Cell(2, 21).GetString(), StringComparison.Ordinal);
+            Assert.DoesNotContain(Environment.NewLine, worksheet.Cell(3, 21).GetString(), StringComparison.Ordinal);
         }
         finally
         {

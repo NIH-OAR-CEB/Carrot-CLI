@@ -2,11 +2,12 @@ namespace Carrot.Cli.Reporting;
 
 /**************************************************************/
 /// <summary>
-/// Models one source-file row in the ordered Excel Results worksheet.
+/// Models one category membership row in the ordered Excel Results worksheet.
 /// </summary>
 /// <remarks>
-/// Failed extraction rows retain source metadata and an empty Carrot document index.
-/// Excel-bound strings are formatted as text to prevent formula evaluation.
+/// Assigned documents repeat their source metadata once per membership. Unassigned documents
+/// retain one row with blank category values. Excel-bound strings are formatted as text to
+/// prevent formula evaluation.
 /// </remarks>
 internal sealed record ReportRow
 {
@@ -89,19 +90,19 @@ internal sealed record ReportRow
     public bool PreviewTruncated { get; init; }
 
     /**************************************************************/
-    /// <summary>Gets the number of exact cluster memberships assigned to this document.</summary>
+    /// <summary>Gets one for an assigned membership row or zero for an unassigned document row.</summary>
     public int CategoryCount { get; init; }
 
     /**************************************************************/
-    /// <summary>Gets full membership paths separated by Excel line breaks.</summary>
+    /// <summary>Gets the single full category path represented by this row.</summary>
     public string? CategoryPaths { get; init; }
 
     /**************************************************************/
-    /// <summary>Gets membership scores aligned with category paths.</summary>
+    /// <summary>Gets the invariant unrounded score for this row's single category.</summary>
     public string? CategoryScores { get; init; }
 
     /**************************************************************/
-    /// <summary>Gets exact membership structures serialized as JSON.</summary>
+    /// <summary>Gets the exact single membership as a singleton JSON array, or an empty array when unassigned.</summary>
     public string? CategoryMembershipsJson { get; init; }
 
     #endregion

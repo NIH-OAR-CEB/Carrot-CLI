@@ -9,7 +9,7 @@ namespace Carrot.Cli.Reporting;
 
 /**************************************************************/
 /// <summary>
-/// Maps one retained successful processed batch to the shared ordered workbook row contract.
+/// Maps one retained successful processed batch to the ordered membership-row workbook contract.
 /// </summary>
 /// <remarks>
 /// Mapping consumes only retained in-memory data. It never rereads source files or contacts
@@ -43,11 +43,14 @@ internal sealed class ProcessedDocumentReportMapper
     }
 
     /**************************************************************/
-    /// <summary>Creates one ordered report request from a retained successful processed batch.</summary>
+    /// <summary>Creates one ordered report request with one row per category membership.</summary>
     /// <param name="batch">The exact retained request, response, and correlated rows.</param>
     /// <param name="outputPath">The normalized absolute workbook destination.</param>
     /// <param name="overwrite">Whether an existing workbook may be replaced.</param>
-    /// <returns>A complete workbook request with one row per submitted document.</returns>
+    /// <returns>
+    /// A complete workbook request with one row per category membership and one blank-category
+    /// row for every unassigned submitted document.
+    /// </returns>
     internal ReportRequest Create(ProcessedDocumentBatch batch, string outputPath, bool overwrite)
     {
         #region implementation
@@ -57,7 +60,7 @@ internal sealed class ProcessedDocumentReportMapper
 
         var rows = batch.Rows
             .OrderBy(row => row.CarrotDocumentIndex)
-            .Select(row => createRow(batch, row))
+            .SelectMany(row => createRows(batch, row))
             .ToArray();
 
         return new ReportRequest
@@ -71,25 +74,44 @@ internal sealed class ProcessedDocumentReportMapper
     }
 
     /**************************************************************/
-    /// <summary>Maps one correlated processed document to the documented Results worksheet schema.</summary>
+    /// <summary>Expands one correlated processed document into ordered membership rows.</summary>
     /// <param name="batch">The owning processed run.</param>
     /// <param name="row">The submitted document and its ordered memberships.</param>
-    /// <returns>The complete workbook row.</returns>
-    private ReportRow createRow(ProcessedDocumentBatch batch, ProcessedDocumentRow row)
+    /// <returns>
+    /// One row per membership, or one row with blank category values when the document is unassigned.
+    /// </returns>
+    private IReadOnlyList<ReportRow> createRows(ProcessedDocumentBatch batch, ProcessedDocumentRow row)
+    {
+        #region implementation
+
+        if (row.Memberships.Count == 0)
+        {
+            return [createRow(batch, row, membership: null)];
+        }
+
+        return row.Memberships
+            .Select(membership => createRow(batch, row, membership))
+            .ToArray();
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Maps one document and optional category membership to one database-friendly worksheet row.</summary>
+    /// <param name="batch">The owning processed run.</param>
+    /// <param name="row">The submitted document whose metadata is repeated on the row.</param>
+    /// <param name="membership">The single membership represented by the row, or null for an unassigned document.</param>
+    /// <returns>The complete scalar-category workbook row.</returns>
+    private ReportRow createRow(
+        ProcessedDocumentBatch batch,
+        ProcessedDocumentRow row,
+        ClusterMembership? membership)
     {
         #region implementation
 
         var document = row.PreparedDocument;
         var source = document.SourceFile;
         var previewLength = Math.Min(document.Content.Length, _contentPreviewCharacterLimit);
-        var categoryPaths = row.Memberships.Count == 0
-            ? null
-            : string.Join(Environment.NewLine, row.Memberships.Select(membership => membership.CategoryPath));
-        var categoryScores = row.Memberships.Count == 0
-            ? null
-            : string.Join(
-                Environment.NewLine,
-                row.Memberships.Select(membership => membership.Score?.ToString("R", CultureInfo.InvariantCulture) ?? string.Empty));
 
         return new ReportRow
         {
@@ -112,10 +134,12 @@ internal sealed class ProcessedDocumentReportMapper
             ExtractedCharacterCount = document.Content.Length,
             ContentPreview = document.Content[..previewLength],
             PreviewTruncated = document.Content.Length > previewLength,
-            CategoryCount = row.Memberships.Count,
-            CategoryPaths = categoryPaths,
-            CategoryScores = categoryScores,
-            CategoryMembershipsJson = JsonSerializer.Serialize(row.Memberships, MembershipJsonOptions)
+            CategoryCount = membership is null ? 0 : 1,
+            CategoryPaths = membership?.CategoryPath,
+            CategoryScores = membership?.Score?.ToString("R", CultureInfo.InvariantCulture),
+            CategoryMembershipsJson = membership is null
+                ? "[]"
+                : JsonSerializer.Serialize(new[] { membership }, MembershipJsonOptions)
         };
 
         #endregion

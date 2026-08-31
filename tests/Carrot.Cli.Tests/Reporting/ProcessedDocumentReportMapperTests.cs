@@ -13,9 +13,9 @@ public sealed class ProcessedDocumentReportMapperTests
     #region implementation
 
     /**************************************************************/
-    /// <summary>Verifies source, request, preview, and aligned membership fields use retained values.</summary>
+    /// <summary>Verifies each membership becomes one scalar-category row with repeated retained metadata.</summary>
     [Fact]
-    public void Create_AssignedDocument_MapsCompleteDocumentAndInvariantMemberships()
+    public void Create_AssignedDocument_EmitsOneRowPerInvariantMembership()
     {
         #region implementation
 
@@ -53,25 +53,42 @@ public sealed class ProcessedDocumentReportMapperTests
             // Assert
             Assert.True(request.Overwrite);
             Assert.Equal("C:\\Reports\\results.xlsx", request.OutputPath);
-            var row = Assert.Single(request.Rows);
-            Assert.Equal(ReportingTestData.RunId, row.RunId);
-            Assert.Equal("Success", row.RunStatus);
-            Assert.Equal("http://localhost:8080/service", row.Endpoint.TrimEnd('/'));
-            Assert.Equal("Lingo", row.Algorithm);
-            Assert.Equal("English", row.Language);
-            Assert.Null(row.Template);
-            Assert.Equal(7, row.SourceOrdinal);
-            Assert.Equal(0, row.CarrotDocumentIndex);
-            Assert.Equal("=formula.txt", row.FileName);
-            Assert.Equal(new string('A', 64), row.Sha256);
-            Assert.Equal("Ready", row.ExtractionStatus);
-            Assert.Equal("=formula-looking content", row.ContentPreview);
-            Assert.False(row.PreviewTruncated);
-            Assert.Equal(2, row.CategoryCount);
-            Assert.Equal($"Parent > Child{Environment.NewLine}No score", row.CategoryPaths);
-            Assert.Equal($"0.12345678901234566{Environment.NewLine}", row.CategoryScores);
-            Assert.Contains("\"categoryPath\":\"Parent > Child\"", row.CategoryMembershipsJson, StringComparison.Ordinal);
-            Assert.Contains("\"score\":null", row.CategoryMembershipsJson, StringComparison.Ordinal);
+            Assert.Collection(
+                request.Rows,
+                firstRow =>
+                {
+                    Assert.Equal(ReportingTestData.RunId, firstRow.RunId);
+                    Assert.Equal("Success", firstRow.RunStatus);
+                    Assert.Equal("http://localhost:8080/service", firstRow.Endpoint.TrimEnd('/'));
+                    Assert.Equal("Lingo", firstRow.Algorithm);
+                    Assert.Equal("English", firstRow.Language);
+                    Assert.Null(firstRow.Template);
+                    Assert.Equal(7, firstRow.SourceOrdinal);
+                    Assert.Equal(0, firstRow.CarrotDocumentIndex);
+                    Assert.Equal("=formula.txt", firstRow.FileName);
+                    Assert.Equal(new string('A', 64), firstRow.Sha256);
+                    Assert.Equal("Ready", firstRow.ExtractionStatus);
+                    Assert.Equal("=formula-looking content", firstRow.ContentPreview);
+                    Assert.False(firstRow.PreviewTruncated);
+                    Assert.Equal(1, firstRow.CategoryCount);
+                    Assert.Equal("Parent > Child", firstRow.CategoryPaths);
+                    Assert.Equal("0.12345678901234566", firstRow.CategoryScores);
+                    Assert.Contains("\"categoryPath\":\"Parent > Child\"", firstRow.CategoryMembershipsJson, StringComparison.Ordinal);
+                    Assert.DoesNotContain("No score", firstRow.CategoryMembershipsJson, StringComparison.Ordinal);
+                },
+                secondRow =>
+                {
+                    Assert.Equal(7, secondRow.SourceOrdinal);
+                    Assert.Equal(0, secondRow.CarrotDocumentIndex);
+                    Assert.Equal("=formula.txt", secondRow.FileName);
+                    Assert.Equal("=formula-looking content", secondRow.ContentPreview);
+                    Assert.Equal(1, secondRow.CategoryCount);
+                    Assert.Equal("No score", secondRow.CategoryPaths);
+                    Assert.Null(secondRow.CategoryScores);
+                    Assert.Contains("\"categoryPath\":\"No score\"", secondRow.CategoryMembershipsJson, StringComparison.Ordinal);
+                    Assert.Contains("\"score\":null", secondRow.CategoryMembershipsJson, StringComparison.Ordinal);
+                    Assert.DoesNotContain("Parent > Child", secondRow.CategoryMembershipsJson, StringComparison.Ordinal);
+                });
         }
         finally
         {
