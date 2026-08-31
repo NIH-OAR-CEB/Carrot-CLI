@@ -257,6 +257,11 @@ public sealed class InteractiveMenuTests
         var resolver = new InputSourceResolver(folderLoader, fileLoader, zipLoader, formats);
         var pathNormalizer = new InputPathNormalizer();
         var pager = new PreparedResultsPager(console, options);
+        var exportFlow = new ProcessedResultsExportFlow(
+            console,
+            new ExcelOutputPathResolver(),
+            new ExcelOutputPathSuggester(TimeProvider.System),
+            new StubProcessedResultsExporter());
         var processDocumentsMenu = new ProcessDocumentsMenu(
             console,
             helpRenderer,
@@ -267,12 +272,8 @@ public sealed class InteractiveMenuTests
             new PreparedJsonPackagePager(console, new ClusterRequestFactory(options)),
             new EndpointResolver(),
             new StubPreparedDocumentProcessor(),
-            new ProcessedResultsPager(console, options),
-            new ProcessedResultsExportFlow(
-                console,
-                new ExcelOutputPathResolver(),
-                new ExcelOutputPathSuggester(TimeProvider.System),
-                new StubProcessedResultsExporter()),
+            new ProcessedResultsPager(console, options, exportFlow),
+            exportFlow,
             options);
         return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer, processDocumentsMenu);
 

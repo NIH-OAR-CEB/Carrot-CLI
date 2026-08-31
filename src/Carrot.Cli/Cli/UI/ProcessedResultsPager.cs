@@ -7,7 +7,7 @@ using Spectre.Console;
 namespace Carrot.Cli.Cli.UI;
 
 /**************************************************************/
-/// <summary>Renders correlated Carrot results as five-document pages with Escape-aware navigation.</summary>
+/// <summary>Renders correlated Carrot results as five-document pages with export and Escape-aware navigation.</summary>
 /// <remarks>
 /// Category paths and scores retain depth-first server order. Scores use round-trip formatting
 /// without display rounding and are meaningful only relative to other clusters in this response.
@@ -19,6 +19,7 @@ internal sealed class ProcessedResultsPager
 
     private readonly IAnsiConsole _console;
     private readonly int _pageSize;
+    private readonly ProcessedResultsExportFlow _exportFlow;
 
     /**************************************************************/
     /// <summary>Defines stable navigation actions available below every processed page.</summary>
@@ -33,22 +34,32 @@ internal sealed class ProcessedResultsPager
         Previous,
 
         /**************************************************************/
+        /// <summary>Saves the complete retained processed result to an operator-selected Excel workbook.</summary>
+        Save,
+
+        /**************************************************************/
         /// <summary>Returns to retained prepared-batch actions.</summary>
         Back
     }
 
     /**************************************************************/
-    /// <summary>Initializes processed-result paging with the interactive console and configured page size.</summary>
+    /// <summary>Initializes processed-result paging with the interactive console, page size, and Excel export flow.</summary>
     /// <param name="console">The console receiving tables and navigation prompts.</param>
     /// <param name="options">The validated shared five-row paging configuration.</param>
-    public ProcessedResultsPager(IAnsiConsole console, IOptions<CarrotCliOptions> options)
+    /// <param name="exportFlow">The existing retained-result Excel interaction.</param>
+    public ProcessedResultsPager(
+        IAnsiConsole console,
+        IOptions<CarrotCliOptions> options,
+        ProcessedResultsExportFlow exportFlow)
     {
         #region implementation
 
         ArgumentNullException.ThrowIfNull(console);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(exportFlow);
         _console = console;
         _pageSize = options.Value.PreparedResultsPageSize;
+        _exportFlow = exportFlow;
 
         #endregion
     }
@@ -75,10 +86,20 @@ internal sealed class ProcessedResultsPager
                 // Spectre selects the first entry by default, so forward navigation comes first.
                 choices.Add(PageChoice.Next);
             }
+            else
+            {
+                // Saving is the natural next action after reviewing the final result page.
+                choices.Add(PageChoice.Save);
+            }
 
             if (pageIndex > 0)
             {
                 choices.Add(PageChoice.Previous);
+            }
+
+            if (!choices.Contains(PageChoice.Save))
+            {
+                choices.Add(PageChoice.Save);
             }
 
             choices.Add(PageChoice.Back);
@@ -89,6 +110,7 @@ internal sealed class ProcessedResultsPager
                 {
                     PageChoice.Next => "Next Page",
                     PageChoice.Previous => "Previous Page",
+                    PageChoice.Save => "Save Processed Results to Excel",
                     PageChoice.Back => "Back to Batch Actions",
                     _ => choice.ToString()
                 })
@@ -104,6 +126,9 @@ internal sealed class ProcessedResultsPager
                     break;
                 case PageChoice.Previous:
                     pageIndex--;
+                    break;
+                case PageChoice.Save:
+                    await _exportFlow.RunAsync(batch, cancellationToken).ConfigureAwait(false);
                     break;
                 case PageChoice.Back:
                     return;

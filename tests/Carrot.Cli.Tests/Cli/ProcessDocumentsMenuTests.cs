@@ -285,7 +285,10 @@ public sealed class ProcessDocumentsMenuTests
                 PreparedBatch = prepared,
                 Timeout = TimeSpan.FromSeconds(120)
             });
-        var pager = new ProcessedResultsPager(console, Options.Create(new CarrotCliOptions()));
+        var pager = new ProcessedResultsPager(
+            console,
+            Options.Create(new CarrotCliOptions()),
+            createExportFlow(console));
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Escape);
@@ -300,6 +303,48 @@ public sealed class ProcessDocumentsMenuTests
         Assert.Contains("document-11.txt", console.Output, StringComparison.Ordinal);
         Assert.Contains("0.12345678901234566", console.Output, StringComparison.Ordinal);
         Assert.Contains("Scores are relative only within this response", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Verifies the final processed page defaults to Excel export and returns to the same page after saving.
+    /// </summary>
+    [Fact]
+    public async Task ProcessedPager_FinalPage_DefaultsToSaveAndRetainsCurrentPage()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = createConsole();
+        console.Profile.Width = 200;
+        var prepared = createReadyResult("C:\\Inputs\\document.txt", 1).Value!;
+        var processed = createProcessedBatch(
+            new ProcessPreparedItemsRequest
+            {
+                Endpoint = new Uri("http://localhost:8080/service"),
+                PreparedBatch = prepared,
+                Timeout = TimeSpan.FromSeconds(120)
+            });
+        var exporter = new CapturingProcessedResultsExporter();
+        var pager = new ProcessedResultsPager(
+            console,
+            Options.Create(new CarrotCliOptions()),
+            createExportFlow(console, exporter));
+        console.Input.PushKey(ConsoleKey.Enter); // Save Processed Results to Excel.
+        console.Input.PushKey(ConsoleKey.Enter); // Accept the suggested destination.
+        console.Input.PushKey(ConsoleKey.Escape); // Return to Batch Actions after the page is redisplayed.
+
+        // Act
+        await pager.ShowAsync(processed, TestContext.Current.CancellationToken);
+
+        // Assert
+        var request = Assert.Single(exporter.Requests);
+        Assert.Same(processed, request.Batch);
+        Assert.Contains("Save Processed Results to Excel", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Excel report saved", console.Output, StringComparison.Ordinal);
+        Assert.Equal(2, countOccurrences(console.Output, "Page 1/1"));
 
         #endregion
     }
@@ -377,6 +422,7 @@ public sealed class ProcessDocumentsMenuTests
             new HelpTopicCatalog(),
             new EmbeddedHelpContentProvider(),
             markdownRenderer);
+        var exportFlow = createExportFlow(console, exporter);
         return new ProcessDocumentsMenu(
             console,
             helpRenderer,
@@ -387,13 +433,29 @@ public sealed class ProcessDocumentsMenuTests
             new PreparedJsonPackagePager(console, new ClusterRequestFactory(options)),
             new EndpointResolver(),
             processor,
-            new ProcessedResultsPager(console, options),
-            new ProcessedResultsExportFlow(
-                console,
-                new ExcelOutputPathResolver(),
-                new ExcelOutputPathSuggester(TimeProvider.System),
-                exporter ?? new CapturingProcessedResultsExporter()),
+            new ProcessedResultsPager(console, options, exportFlow),
+            exportFlow,
             options);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Creates the real Excel prompt flow with an optional capturing persistence boundary.</summary>
+    /// <param name="console">The console receiving the export interaction.</param>
+    /// <param name="exporter">The optional exporter used to capture save requests.</param>
+    /// <returns>The fully wired retained-result export flow.</returns>
+    private static ProcessedResultsExportFlow createExportFlow(
+        TestConsole console,
+        IProcessedResultsExporter? exporter = null)
+    {
+        #region implementation
+
+        return new ProcessedResultsExportFlow(
+            console,
+            new ExcelOutputPathResolver(),
+            new ExcelOutputPathSuggester(TimeProvider.System),
+            exporter ?? new CapturingProcessedResultsExporter());
 
         #endregion
     }
