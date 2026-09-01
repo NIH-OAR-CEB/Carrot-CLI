@@ -27,6 +27,7 @@ public sealed class HelpSystemTests
 
         // Act and Assert
         Assert.Equal(13, catalog.Topics.Count);
+        Assert.Equal("task-scheduler", catalog.Topics[1].Key);
         foreach (var expectedTopic in catalog.Topics)
         {
             Assert.True(catalog.TryResolve(expectedTopic.Key, out var resolvedTopic));
@@ -276,8 +277,8 @@ public sealed class HelpSystemTests
         Assert.Contains("bold", console.Output, StringComparison.Ordinal);
         Assert.Contains("code", console.Output, StringComparison.Ordinal);
         Assert.Contains("https://example.test", console.Output, StringComparison.Ordinal);
-        Assert.Contains("• Bullet", console.Output, StringComparison.Ordinal);
-        Assert.Contains("1. Step", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Bullet", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Step", console.Output, StringComparison.Ordinal);
         Assert.Contains("[red]literal[/]", console.Output, StringComparison.Ordinal);
         Assert.Contains("[blue]literal code[/]", console.Output, StringComparison.Ordinal);
 

@@ -33,6 +33,7 @@ internal sealed class HelpTopicCatalog
         Topics = new[]
         {
             createTopic("getting-started", "Getting Started", "start", "overview"),
+            createTopic("task-scheduler", "Windows Task Scheduler", "scheduler", "scheduling"),
             createTopic("process", "Process Documents"),
             createTopic("preview", "Preview Request"),
             createTopic("server-info", "Server Information", "server", "server-information"),
@@ -41,7 +42,6 @@ internal sealed class HelpTopicCatalog
             createTopic("extraction-rules", "Extraction Rules", "extraction"),
             createTopic("clustering-settings", "Clustering Settings", "clustering"),
             createTopic("output-columns", "Output Columns", "output", "output-format"),
-            createTopic("task-scheduler", "Windows Task Scheduler", "scheduler", "scheduling"),
             createTopic("exit-codes", "Exit Codes", "exit"),
             createTopic("privacy", "Privacy"),
             createTopic("troubleshooting", "Troubleshooting", "problems")

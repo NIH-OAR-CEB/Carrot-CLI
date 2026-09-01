@@ -56,23 +56,6 @@ internal sealed class InteractiveMenu
     }
 
     /**************************************************************/
-    /// <summary>Defines stable actions shared by the Preview Request workflow menu.</summary>
-    private enum WorkflowMenuChoice
-    {
-        /**************************************************************/
-        /// <summary>Attempts the deferred operation and displays its pending status.</summary>
-        Execute,
-
-        /**************************************************************/
-        /// <summary>Displays workflow-specific Markdown help.</summary>
-        Help,
-
-        /**************************************************************/
-        /// <summary>Returns to the application main menu.</summary>
-        Back
-    }
-
-    /**************************************************************/
     /// <summary>
     /// Initializes the main menu with presentation and document-preparation navigation dependencies.
     /// </summary>
@@ -187,29 +170,29 @@ internal sealed class InteractiveMenu
 
         while (true)
         {
-            var choice = await new SelectionPrompt<WorkflowMenuChoice>()
+            var choice = await new SelectionPrompt<ServerInformationChoice>()
                 .Title("[bold orange1]Server Information[/]")
                 .HighlightStyle(new Style(Color.Black, Color.Orange1))
                 .UseConverter(item => item switch
                 {
-                    WorkflowMenuChoice.Execute => "Execute",
-                    WorkflowMenuChoice.Help => "Help",
-                    WorkflowMenuChoice.Back => "Back to Main Menu",
+                    ServerInformationChoice.Execute => "Execute",
+                    ServerInformationChoice.Help => "Help",
+                    ServerInformationChoice.Back => "Back to Main Menu",
                     _ => item.ToString()
                 })
-                .AddChoices(Enum.GetValues<WorkflowMenuChoice>())
+                .AddChoices(Enum.GetValues<ServerInformationChoice>())
                 .ShowAsync(_console, cancellationToken)
                 .ConfigureAwait(false);
 
             switch (choice)
             {
-                case WorkflowMenuChoice.Execute:
+                case ServerInformationChoice.Execute:
                     await _serverInformationFlow.RunAsync(cancellationToken).ConfigureAwait(false);
                     break;
-                case WorkflowMenuChoice.Help:
+                case ServerInformationChoice.Help:
                     await _helpRenderer.RenderAsync("server-info", cancellationToken).ConfigureAwait(false);
                     break;
-                case WorkflowMenuChoice.Back:
+                case ServerInformationChoice.Back:
                     return;
                 default:
                     throw new InvalidOperationException($"Unsupported server-information action: {choice}");
@@ -247,58 +230,10 @@ internal sealed class InteractiveMenu
         #endregion
     }
 
+
     /**************************************************************/
-    /// <summary>
-    /// Runs one deferred workflow screen with Execute, Help, and Back selections.
-    /// </summary>
-    /// <param name="title">The workflow title shown in the prompt and pending panel.</param>
-    /// <param name="helpTopic">The canonical topic displayed by the Help selection.</param>
-    /// <param name="cancellationToken">The token signaling console cancellation.</param>
-    /// <returns>A task representing completion of submenu navigation.</returns>
-    private async Task runWorkflowMenuAsync(
-        string title,
-        string helpTopic,
-        CancellationToken cancellationToken)
-    {
-        #region implementation
-
-        while (true)
-        {
-            var choice = await new SelectionPrompt<WorkflowMenuChoice>()
-                .Title($"[bold orange1]{Markup.Escape(title)}[/]")
-                .HighlightStyle(new Style(Color.Black, Color.Orange1))
-                .UseConverter(item => item switch
-                {
-                    WorkflowMenuChoice.Execute => "Execute",
-                    WorkflowMenuChoice.Help => "Help",
-                    WorkflowMenuChoice.Back => "Back to Main Menu",
-                    _ => item.ToString()
-                })
-                .AddChoices(Enum.GetValues<WorkflowMenuChoice>())
-                .ShowAsync(_console, cancellationToken)
-                .ConfigureAwait(false);
-
-            switch (choice)
-            {
-                case WorkflowMenuChoice.Execute:
-                    _console.Write(new Panel(new Text("Pending Implementation"))
-                        .Header($"[orange1]{Markup.Escape(title)}[/]")
-                        .Border(BoxBorder.Rounded)
-                        .BorderStyle(new Style(Color.Yellow)));
-                    _console.WriteLine();
-                    break;
-                case WorkflowMenuChoice.Help:
-                    await _helpRenderer.RenderAsync(helpTopic, cancellationToken).ConfigureAwait(false);
-                    break;
-                case WorkflowMenuChoice.Back:
-                    return;
-                default:
-                    throw new InvalidOperationException($"Unsupported workflow-menu selection: {choice}");
-            }
-        }
-
-        #endregion
-    }
+    /// <summary>Defines the actions in the implemented Server Information submenu.</summary>
+    private enum ServerInformationChoice { Execute, Help, Back }
 
     /**************************************************************/
     /// <summary>

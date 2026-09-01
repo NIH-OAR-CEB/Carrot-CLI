@@ -4,13 +4,35 @@ Named `preview` discovers and extracts supported input, validates the selected a
 
 In the current UI milestone:
 
-- **Interactive Preview Request** collects one file, folder, or ZIP input; optional folder recursion; a nonpersisted endpoint; and direct algorithm/language identifiers. It prepares the input, validates the selection through `/list`, displays the exact request through terminal-sized pages, and never calls `/cluster`.
+- **Interactive Preview Request** collects one file, folder, or ZIP input; optional folder recursion; a nonpersisted endpoint; either direct algorithm/language identifiers or a server template; and an optional parameters JSON file. It prepares the input, validates the selection through `/list`, displays the exact request through terminal-sized pages, and never calls `/cluster`.
 - **Save Request JSON** is available from the JSON pager and writes only after an explicit path and overwrite decision. A declined or failed save leaves the request preview available.
 - **Save Workbench JSON** writes only the root document array, not the `/cluster` request wrapper. Upload that `.workbench.json` file through Workbench's **Local file** source, then choose `title` and `content` as text fields.
 - **Help** displays this topic.
 - **Back to Main Menu** leaves the workflow without side effects.
 
 Preview is intended for inspecting document ordering, extracted content, and clustering settings before a real run.
+
+## Examples
+
+Preview a folder with the default Lingo/English selection:
+
+```text
+carrot-cli preview --input "C:\Data\Documents" --endpoint "http://localhost:8080/service"
+```
+
+Preview a ZIP recursively, save the API request, and replace it only when intended:
+
+```text
+carrot-cli preview --input "C:\Data\August.zip" --recursive --endpoint "http://localhost:8080/service" --output "C:\Results\august.request.json" --overwrite
+```
+
+Use an advertised server template and a bounded parameter file:
+
+```text
+carrot-cli preview --input "C:\Data\Documents" --endpoint "http://localhost:8080/service" --template frontend-default --parameters-file "C:\Data\parameters.json"
+```
+
+For Workbench, use Interactive Preview Request, choose **Save Workbench JSON**, upload the resulting `.workbench.json` through **Local file**, then select `title` and `content` as text fields.
 
 ## Command-line usage
 

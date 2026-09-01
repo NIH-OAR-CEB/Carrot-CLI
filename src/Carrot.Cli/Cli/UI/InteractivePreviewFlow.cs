@@ -34,6 +34,10 @@ internal sealed class InteractivePreviewFlow
     private readonly TimeSpan _httpTimeout;
 
     /**************************************************************/
+    /// <summary>Defines the mutually exclusive interactive clustering selection forms.</summary>
+    private enum SelectionMode { Direct, Template }
+
+    /**************************************************************/
     /// <summary>Initializes the focused interactive preview flow with shared preparation and validation boundaries.</summary>
     public InteractivePreviewFlow(IAnsiConsole console, InputPathNormalizer pathNormalizer, InputSourceResolver inputResolver,
         IDocumentPreparationWorkflow preparationWorkflow, EndpointResolver endpointResolver,
@@ -67,15 +71,11 @@ internal sealed class InteractivePreviewFlow
             .DefaultValue(DefaultServiceEndpoint).PromptStyle("yellow").Validate(validateEndpoint)
             .ShowAsync(_console, cancellationToken).ConfigureAwait(false);
         var endpoint = _endpointResolver.Resolve(endpointText).Value!;
-        var algorithm = await new TextPrompt<string>("Algorithm:").DefaultValue("Lingo").PromptStyle("yellow")
-            .ShowAsync(_console, cancellationToken).ConfigureAwait(false);
-        var language = await new TextPrompt<string>("Language:").DefaultValue("English").PromptStyle("yellow")
-            .ShowAsync(_console, cancellationToken).ConfigureAwait(false);
+        var selection = await collectSelectionAsync(cancellationToken).ConfigureAwait(false);
         _console.MarkupLine("[orange1]Preparing documents and validating Carrot configuration...[/]");
         var prepared = await _preparationWorkflow.PrepareAsync(new PrepareDocumentsRequest { InputPaths = [inputPath], Recursive = recursive }, cancellationToken).ConfigureAwait(false);
         renderMessages(prepared.Messages);
         if (prepared.Value is not { } batch || batch.Documents.Count == 0) { _console.MarkupLine("[red]No successfully prepared documents are available to preview.[/]"); return; }
-        var selection = new ClusteringSelection { Algorithm = algorithm, Language = language };
         var resolved = await _configurationResolver.ResolveAsync(selection, cancellationToken).ConfigureAwait(false);
         if (resolved.Value is not { } configuration) { renderMessages(resolved.Messages); return; }
         var available = await _apiClient.GetConfigurationAsync(endpoint, _httpTimeout, null, cancellationToken).ConfigureAwait(false);
@@ -89,6 +89,31 @@ internal sealed class InteractivePreviewFlow
             token => saveAsync(inputPath, request, token),
             token => saveWorkbenchAsync(inputPath, request, token),
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /**************************************************************/
+    /// <summary>Collects a direct algorithm/language pair or an advertised template plus optional parameters file.</summary>
+    private async Task<ClusteringSelection> collectSelectionAsync(CancellationToken cancellationToken)
+    {
+        var mode = await new SelectionPrompt<SelectionMode>()
+            .Title("[bold orange1]Clustering selection[/]")
+            .UseConverter(value => value == SelectionMode.Direct ? "Algorithm and language" : "Server template")
+            .AddChoices(SelectionMode.Direct, SelectionMode.Template)
+            .ShowAsync(_console, cancellationToken).ConfigureAwait(false);
+        var parametersFile = await new TextPrompt<string>("Parameters JSON file [grey](optional)[/]:")
+            .AllowEmpty().PromptStyle("yellow").ShowAsync(_console, cancellationToken).ConfigureAwait(false);
+        if (mode == SelectionMode.Template)
+        {
+            var template = await new TextPrompt<string>("Template:").PromptStyle("yellow")
+                .ShowAsync(_console, cancellationToken).ConfigureAwait(false);
+            return new ClusteringSelection { Template = template, ParametersFile = string.IsNullOrWhiteSpace(parametersFile) ? null : parametersFile };
+        }
+
+        var algorithm = await new TextPrompt<string>("Algorithm:").DefaultValue("Lingo").PromptStyle("yellow")
+            .ShowAsync(_console, cancellationToken).ConfigureAwait(false);
+        var language = await new TextPrompt<string>("Language:").DefaultValue("English").PromptStyle("yellow")
+            .ShowAsync(_console, cancellationToken).ConfigureAwait(false);
+        return new ClusteringSelection { Algorithm = algorithm, Language = language, ParametersFile = string.IsNullOrWhiteSpace(parametersFile) ? null : parametersFile };
     }
 
     /**************************************************************/

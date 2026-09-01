@@ -32,6 +32,15 @@ Server information accepts `--endpoint` and `--timeout-seconds`, calls only `/li
 
 Named operational commands never prompt. Server information, named preview, and named process execution are active. Shared settings validation, clustering resolution, exact `/list` validation, Help, About, Version, interactive document processing, and interactive Server Information are active.
 
+## Examples
+
+```text
+carrot-cli server-info --endpoint "http://localhost:8080/service"
+carrot-cli preview --input "C:\Data\Documents.zip" --endpoint "http://localhost:8080/service" --output "C:\Results\documents.request.json"
+carrot-cli process --input "C:\Data\Documents" --recursive --endpoint "http://localhost:8080/service" --output "C:\Results" --log-file "C:\Logs\carrot-process.log"
+carrot-cli process --input "C:\Data\Documents" --endpoint "http://localhost:8080/service" --template frontend-default --no-json-artifacts --quiet
+```
+
 ## Command-line usage
 
 Display the complete command and option reference:

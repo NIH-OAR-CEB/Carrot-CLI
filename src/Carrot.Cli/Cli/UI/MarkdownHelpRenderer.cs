@@ -113,8 +113,7 @@ internal sealed class MarkdownHelpRenderer
             }
 
             if (tryRenderHeading(line)
-                || tryRenderUnorderedListItem(line)
-                || tryRenderOrderedListItem(line))
+                || tryRenderHangingListItem(line))
             {
                 flushParagraph(paragraphLines);
                 continue;
@@ -136,6 +135,37 @@ internal sealed class MarkdownHelpRenderer
                 renderCodeBlock(codeLines);
             }
         }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Renders ordered and unordered lists in aligned columns so wrapped content has a hanging indent.</summary>
+    /// <param name="line">The current Markdown source line.</param>
+    /// <returns><see langword="true"/> when the line was rendered as a list item.</returns>
+    private bool tryRenderHangingListItem(string line)
+    {
+        #region implementation
+
+        var unordered = UnorderedListPattern.Match(line);
+        var ordered = OrderedListPattern.Match(line);
+        if (!unordered.Success && !ordered.Success)
+        {
+            return false;
+        }
+
+        var marker = unordered.Success
+            ? "[orange1]•[/]"
+            : $"[orange1]{Markup.Escape(ordered.Groups["number"].Value)}.[/]";
+        var content = renderInline((unordered.Success ? unordered : ordered).Groups["content"].Value);
+        var markerWidth = unordered.Success ? 4 : Math.Max(4, ordered.Groups["number"].Value.Length + 3);
+        var grid = new Grid();
+        grid.AddColumn(new GridColumn().Width(markerWidth).NoWrap());
+        grid.AddColumn();
+        grid.AddRow(new Markup(marker), new Markup(content));
+        _console.Write(grid);
+        _console.WriteLine();
+        return true;
 
         #endregion
     }
