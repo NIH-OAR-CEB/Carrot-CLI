@@ -1,6 +1,6 @@
 # Architecture and Deferred Acceptance Verification
 
-Status: Pending
+Status: Complete
 
 Category: Engineering assurance
 
@@ -52,6 +52,12 @@ Use lightweight reflection and source scanning to protect the established intern
 - Scanners ignore generated and non-C# content and produce actionable file/line failures.
 - Full build, tests, formatting, publish, and whitespace verification pass with only the explicit local-service smoke test opt-in when unavailable.
 
+## Completion Evidence
+
+- Activated root-independent reflection coverage for required internal commands, settings, processing boundaries, and workflow signatures.
+- Activated production source scanning for obsolete layout-only markers and required separator-header/XML-summary conventions.
+- Removed stale layout-only exception documentation and extended DI graph resolution coverage for named process and interactive preview.
+
 ## 9. Risks and Assumptions
 
 - Overly broad scanners become brittle; checks must target stable repository conventions and report precise failures.
@@ -60,4 +66,3 @@ Use lightweight reflection and source scanning to protect the established intern
 ## 10. Deferred Follow-up
 
 - Add new acceptance checks only when later product capabilities introduce a durable repository-wide invariant.
-

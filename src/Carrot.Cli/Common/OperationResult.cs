@@ -34,7 +34,6 @@ internal sealed record OperationResult<T>
     /// <param name="value">The successful operation value.</param>
     /// <param name="messages">Optional informational messages.</param>
     /// <returns>A successful operation result.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     internal static OperationResult<T> Success(T value, IReadOnlyList<OperationMessage>? messages = null)
     {
         #region implementation
@@ -58,7 +57,6 @@ internal sealed record OperationResult<T>
     /// <param name="value">The usable partial operation value.</param>
     /// <param name="messages">The immutable warning and informational messages.</param>
     /// <returns>A partially successful operation result.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     internal static OperationResult<T> PartialSuccess(T value, IReadOnlyList<OperationMessage> messages)
     {
         #region implementation
@@ -87,7 +85,6 @@ internal sealed record OperationResult<T>
     /// </summary>
     /// <param name="messages">The immutable failure messages.</param>
     /// <returns>A failed operation result.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     internal static OperationResult<T> Failure(IReadOnlyList<OperationMessage> messages)
     {
         #region implementation

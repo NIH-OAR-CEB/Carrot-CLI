@@ -18,7 +18,6 @@ internal sealed class CarrotCliOptionsValidator : IValidateOptions<CarrotCliOpti
     /// <param name="name">The optional named-options key.</param>
     /// <param name="options">The bound options instance.</param>
     /// <returns>A success result or all validation errors.</returns>
-    /// <exception cref="NotImplementedException">Always thrown by the layout-only scaffold.</exception>
     public ValidateOptionsResult Validate(string? name, CarrotCliOptions options)
     {
         #region implementation
