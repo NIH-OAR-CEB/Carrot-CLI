@@ -32,14 +32,16 @@ Excel export suggests a complete `Documents\carrot-results-YYYYMMDD-HHMMSS.xlsx`
 
 Start Over and Back require confirmation before discarding extracted content.
 
-Use `carrot-cli help supported-formats`, `carrot-cli help extraction-rules`, and `carrot-cli help privacy` for preparation details. Named `process` command execution remains deferred.
+Use `carrot-cli help supported-formats`, `carrot-cli help extraction-rules`, and `carrot-cli help privacy` for preparation details. The named `process` command provides the equivalent unattended flow with workbook and optional JSON artifact persistence.
 
 ## Command-line usage
 
-The named `process` route remains deferred; this example records its planned unattended syntax:
+The named `process` route runs unattended and never prompts:
 
 ```text
 Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
 Arguments: process --input "C:\Data\Documents" --endpoint "http://localhost:8080/service"
 Start in: C:\Tools\Carrot CLI
 ```
+
+It sends every ready document in one request, writes a `Results` workbook, and writes matching request/response JSON sidecars unless `--no-json-artifacts` is supplied. Use `--output` with an existing directory for an input-derived run-ID filename, or provide an explicit workbook filename. Use `--overwrite` only when replacement is intended.

@@ -120,7 +120,7 @@ internal sealed class ProcessedDocumentReportMapper
             Endpoint = batch.Endpoint.AbsoluteUri,
             Algorithm = batch.Request.Algorithm,
             Language = batch.Request.Language,
-            Template = null,
+            Template = batch.Template,
             SourceOrdinal = source.SourceOrdinal,
             CarrotDocumentIndex = row.CarrotDocumentIndex,
             ContainerPath = source.ContainerPath,

@@ -202,18 +202,6 @@ public sealed class DocumentProcessingWorkflowTests
     }
 
     /**************************************************************/
-    /// <summary>Reserves complete clustering and reporting acceptance for the later named-process milestone.</summary>
-    [Fact(Skip = "Future acceptance: named document processing orchestration is layout-only.")]
-    public void ProcessPreservesGlobalClusteringSemanticsAndSourceCorrelation()
-    {
-        #region implementation
-
-        throw new NotImplementedException("Layout stub only.");
-
-        #endregion
-    }
-
-    /**************************************************************/
     /// <summary>Creates a workflow with production configuration behavior and controlled volatile collaborators.</summary>
     private static DocumentProcessingWorkflow createWorkflow(
         IDocumentPreparationWorkflow preparation,
@@ -229,7 +217,10 @@ public sealed class DocumentProcessingWorkflowTests
             new ClusteringConfigurationValidator(),
             client,
             new ClusterRequestFactory(options),
-            writer);
+            writer,
+            new FakePreparedDocumentProcessor(),
+            new ProcessedDocumentReportMapper(options),
+            new RecordingExcelReportWriter());
 
         #endregion
     }
@@ -478,6 +469,48 @@ public sealed class DocumentProcessingWorkflowTests
             Path = path;
             Artifact = artifact;
             return Exception is null ? Task.CompletedTask : Task.FromException(Exception);
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Provides an unused default processing dependency for preview-only workflow tests.</summary>
+    private sealed class FakePreparedDocumentProcessor : IPreparedDocumentProcessor
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Rejects unexpected processing calls because these tests exercise only preview behavior.</summary>
+        public Task<OperationResult<ProcessedDocumentBatch>> ProcessAsync(
+            ProcessPreparedItemsRequest request,
+            CancellationToken cancellationToken)
+        {
+            #region implementation
+
+            throw new InvalidOperationException("Preview tests must not invoke prepared processing.");
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Provides an unused default workbook writer for preview-only workflow tests.</summary>
+    private sealed class RecordingExcelReportWriter : IExcelReportWriter
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Rejects unexpected workbook writes because these tests exercise only preview behavior.</summary>
+        public Task WriteAsync(ReportRequest request, CancellationToken cancellationToken)
+        {
+            #region implementation
+
+            throw new InvalidOperationException("Preview tests must not write a workbook.");
 
             #endregion
         }

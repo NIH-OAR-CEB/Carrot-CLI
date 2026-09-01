@@ -92,7 +92,10 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
             cancellationToken).ConfigureAwait(false);
         if (configurationResult.Value is not { } configuration)
         {
-            return OperationResult<ProcessedDocumentBatch>.Failure(configurationResult.Messages);
+            return failureAtStage(
+                "processing.list.failure",
+                "The Carrot service configuration could not be retrieved.",
+                configurationResult.Messages);
         }
 
         var validationResult = _configurationValidator.Validate(resolvedConfiguration, configuration);
@@ -110,7 +113,10 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
             cancellationToken).ConfigureAwait(false);
         if (clusterResult.Value is not { } response)
         {
-            return OperationResult<ProcessedDocumentBatch>.Failure(clusterResult.Messages);
+            return failureAtStage(
+                "processing.cluster.failure",
+                "The Carrot clustering request did not complete.",
+                clusterResult.Messages);
         }
 
         var membershipResult = _membershipMapper.Map(response, clusterRequest.Documents.Count);
@@ -140,6 +146,7 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
             RunId = _runIdProvider.Create(),
             Endpoint = request.Endpoint,
             Request = clusterRequest,
+            Template = resolvedConfiguration.Template,
             Response = response,
             Rows = Array.AsReadOnly(rows)
         });
@@ -158,6 +165,30 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
 
         return OperationResult<ProcessedDocumentBatch>.Failure(
             [new OperationMessage { Code = code, Message = message, Severity = OperationMessageSeverity.Error }]);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Preserves a dependency failure while recording the operation stage needed for exit-code mapping.</summary>
+    /// <param name="code">The stable processing-stage failure code.</param>
+    /// <param name="message">The safe stage-level diagnostic.</param>
+    /// <param name="messages">The original dependency diagnostics.</param>
+    /// <returns>A failure containing the original and stage-specific diagnostics.</returns>
+    private static OperationResult<ProcessedDocumentBatch> failureAtStage(
+        string code,
+        string message,
+        IReadOnlyList<OperationMessage> messages)
+    {
+        #region implementation
+
+        return OperationResult<ProcessedDocumentBatch>.Failure(
+            messages.Concat([new OperationMessage
+            {
+                Code = code,
+                Message = message,
+                Severity = OperationMessageSeverity.Error
+            }]).ToArray());
 
         #endregion
     }

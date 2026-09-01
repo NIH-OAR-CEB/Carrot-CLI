@@ -14,11 +14,11 @@ carrot-cli --version
 
 ## Process
 
-Planned named-command options are `--input`, `--endpoint`, `--output`, `--recursive`, `--algorithm`, `--language`, `--template`, `--parameters-file`, `--timeout-seconds`, `--overwrite`, `--no-json-artifacts`, `--quiet`, and `--log-file`. `--quiet` suppresses normal progress and final summaries but never warnings or errors. `--log-file` must have an existing parent directory and appends safe UTF-8 lifecycle, warning/error, exit-code, and artifact-path records; it never records document content, API payloads, credentials, or server stack traces.
+Named process accepts `--input`, `--endpoint`, `--output`, `--recursive`, `--algorithm`, `--language`, `--template`, `--parameters-file`, `--timeout-seconds`, `--overwrite`, `--no-json-artifacts`, `--quiet`, and `--log-file`. It discovers and extracts input, validates the exact selection through `/list`, sends all ready documents in one `/cluster` request, and writes a correlated `Results` workbook. Unless `--no-json-artifacts` is supplied, it also writes exact request and response JSON sidecars. `--quiet` suppresses normal progress and final summaries but never warnings or errors. `--log-file` must have an existing parent directory and appends safe UTF-8 lifecycle, warning/error, exit-code, and artifact-path records; it never records document content, API payloads, credentials, or server stack traces.
 
-Clustering option resolution is implemented for those later commands. Without `--template`, omitted algorithm and language values default to exact `Lingo` and `English` identifiers. `--template` is mutually exclusive with both direct-selection options and delegates algorithm/language to the exact advertised server template. A `--parameters-file` may accompany either form and must be an existing `.json` file of at most 1,048,576 bytes containing valid UTF-8 JSON with one object root and unique property names.
+Without `--template`, omitted algorithm and language values default to exact `Lingo` and `English` identifiers. `--template` is mutually exclusive with both direct-selection options and delegates algorithm/language to the exact advertised server template. A `--parameters-file` may accompany either form and must be an existing `.json` file of at most 1,048,576 bytes containing valid UTF-8 JSON with one object root and unique property names. With a directory or omitted `--output`, the workbook name is `<input-name>-carrot-<run-id>.xlsx`; sidecars share that filename prefix. An explicit `--output` file becomes the workbook path and determines the sidecar prefix. Complete success returns `0`, usable output with file failures returns `2`, no ready documents returns `3`, `/list` failures return `4`, `/cluster` or response-mapping failures return `5`, output failures return `6`, and cancellation returns `130`.
 
-Named `process` execution remains deferred. For implemented preparation, run `carrot-cli` without arguments and select **Process Documents**. The interactive workflow accepts multiple paths and matching surrounding quotes; one Add Path action represents one file, folder, or ZIP.
+For interactive preparation, run `carrot-cli` without arguments and select **Process Documents**. The interactive workflow accepts multiple paths and matching surrounding quotes; one Add Path action represents one file, folder, or ZIP.
 
 ## Preview
 
@@ -28,7 +28,7 @@ Implemented named preview accepts `--input`, `--endpoint`, `--output`, `--recurs
 
 Server information accepts `--endpoint` and `--timeout-seconds`, calls only `/list`, and displays sorted algorithm, language, and template identifiers. It does not display template bodies or write files. The named command never prompts; the interactive menu prompts for a nonpersisted endpoint and uses `http://localhost:8080/service` as its default. The named endpoint option takes precedence over `CARROTCLI_ENDPOINT`; its exit codes are `0` for success, `1` for invalid configuration, `4` for endpoint or list failures, and `130` for cancellation.
 
-Named operational commands never prompt. Server information and named preview execution are active; process execution remains deferred. Shared settings validation, clustering resolution, exact `/list` validation, Help, About, Version, interactive document processing, and interactive Server Information are active.
+Named operational commands never prompt. Server information, named preview, and named process execution are active. Shared settings validation, clustering resolution, exact `/list` validation, Help, About, Version, interactive document processing, and interactive Server Information are active.
 
 ## Command-line usage
 

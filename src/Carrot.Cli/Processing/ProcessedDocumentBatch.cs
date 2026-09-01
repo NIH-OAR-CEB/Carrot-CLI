@@ -26,6 +26,10 @@ internal sealed record ProcessedDocumentBatch
     public required ClusterRequest Request { get; init; }
 
     /**************************************************************/
+    /// <summary>Gets the optional named server template used for this request.</summary>
+    public string? Template { get; init; }
+
+    /**************************************************************/
     /// <summary>Gets the exact successfully parsed Carrot response.</summary>
     public required ClusterResponse Response { get; init; }
 

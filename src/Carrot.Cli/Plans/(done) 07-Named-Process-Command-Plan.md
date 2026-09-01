@@ -1,6 +1,6 @@
 # Named Process Command
 
-Status: Pending
+Status: Complete
 
 Category: Operational commands
 
@@ -12,7 +12,7 @@ Make `carrot-cli process` run unattended from input discovery through one global
 
 ## 2. Problem
 
-Interactive preparation, processing, correlation, paging, and Excel export are implemented, but `ProcessCommand` and `DocumentProcessingWorkflow.ProcessAsync` remain layout stubs. Scheduled syntax is documented even though it cannot yet execute.
+The named process route now composes existing preparation, global clustering, response correlation, Excel reporting, JSON artifact persistence, reporting, and logging boundaries without prompting.
 
 ## 3. Solution Vision
 
@@ -46,6 +46,12 @@ Compose existing validated boundaries rather than reimplementing them: prepare i
 5. Add end-to-end fake-HTTP tests using mixed supported fixtures and real workbook/JSON writers.
 6. Update all command, Task Scheduler, output, privacy, troubleshooting, and exit-code documentation.
 
+## 8. Completion Evidence
+
+- Implemented `ProcessCommand`, DI registration, and `DocumentProcessingWorkflow.ProcessAsync` with stable exit-code and cancellation behavior.
+- Reused one `IPreparedDocumentProcessor` call for global clustering and retained its run ID in workbook rows, artifact paths, and command results.
+- Added process workflow coverage for complete, partial, and `/list` failure outcomes, and updated operational documentation for workbook and sidecar behavior.
+
 ## 8. Acceptance Criteria
 
 - The command never prompts and is suitable for redirected execution and Task Scheduler.
@@ -63,4 +69,3 @@ Compose existing validated boundaries rather than reimplementing them: prepare i
 ## 10. Deferred Follow-up
 
 - Interactive parity and any future scheduled-task installation helper.
-

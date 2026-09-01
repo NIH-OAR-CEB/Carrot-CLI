@@ -178,7 +178,7 @@ public sealed class PreviewCommandTests
         internal PreviewRequest? Request { get; private set; }
 
         /**************************************************************/
-        /// <summary>Rejects the deferred named processing route in this preview-only test double.</summary>
+        /// <summary>Rejects processing because this test double supports preview only.</summary>
         public Task<ProcessRunResult> ProcessAsync(ProcessRequest request, CancellationToken cancellationToken)
         {
             #region implementation
