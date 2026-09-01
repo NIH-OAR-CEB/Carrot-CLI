@@ -14,13 +14,13 @@
 - **Response index failure:** Carrot returned a document index outside the submitted array, so the complete response was rejected and no partial mapping was displayed.
 - **Excel path rejected:** press Enter to accept the complete timestamped suggestion, or edit it to a `.xlsx` filename under an existing directory. Relative paths and matching surrounding quotes are accepted.
 - **Excel export failed:** close the workbook if another application has locked it, verify write permission, or choose another destination. The processed result remains available and no partial workbook replaces the destination.
-- **JSON artifact persistence failed:** verify the destination parent exists and is writable, and enable overwrite only when replacement is intended. Failure or cancellation preserves an existing destination and removes temporary output. Named commands will use this implemented boundary in later milestones.
+- **JSON artifact persistence failed:** verify the destination parent exists and is writable, and enable overwrite only when replacement is intended. Failure or cancellation preserves an existing destination and removes temporary output. Named `preview` writes one request artifact after `/list` validation and never calls `/cluster`.
 - **Preview says Pending Implementation:** the interactive Preview Request route remains deferred. Server Information should prompt for an endpoint and call `/list`; correct an endpoint that does not end in `/service`, then retry.
-- **Missing endpoint:** future named commands will require `--endpoint` or `CARROTCLI_ENDPOINT`.
+- **Missing endpoint:** named `preview` and `server-info` require `--endpoint` or `CARROTCLI_ENDPOINT`.
 - **Scanned PDF:** OCR is not included; provide a searchable text layer.
 - **Content appears in the terminal or leaves the workstation:** prepared rows show a short preview, Preview JSON Package shows complete ready-document content, and Process Prepared Items sends complete extracted text to the selected endpoint; see Privacy before handling sensitive content.
 - **JSON preview looks truncated:** `↪` marks the visual continuation of the same long JSON string. Use Next Page to continue; the serialized value is not truncated.
-- **Scheduled task has no output:** configure **Start in**, quote paths, and provide `--log-file` beneath an existing writable directory. `--quiet` intentionally hides normal summaries but still writes warnings and errors to both the terminal and the requested log. Named command orchestration remains deferred.
+- **Scheduled task has no output:** configure **Start in**, quote paths, and choose an existing writable output directory or file path. Named `preview` writes its artifact and reports stable exit codes; named process logging remains deferred.
 
 ## Command-line usage
 

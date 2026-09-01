@@ -11,7 +11,7 @@ Run `carrot-cli` without arguments to open the interactive menu.
 7. Select **Save Processed Results to Excel** from any processed-results page or from Batch Actions to accept the suggested timestamped `.xlsx` destination with Enter. Saving returns to the current results page. Use **View Processed Results** to reopen the latest success. The suggestion can be edited, and existing files require overwrite confirmation.
 8. Select **Start Over**, **Back to Main Menu**, or **Exit** when finished.
 
-**Preview Request** still displays `Pending Implementation` from its Execute action. **Server Information** prompts for the nonpersisted Carrot endpoint (default `http://localhost:8080/service`) and displays the server's algorithms, languages, and templates from `/list`.
+The interactive **Preview Request** Execute action still displays `Pending Implementation`; this does not affect the implemented noninteractive `carrot-cli preview` command. **Server Information** prompts for the nonpersisted Carrot endpoint (default `http://localhost:8080/service`) and displays the server's algorithms, languages, and templates from `/list`.
 
 For noninteractive syntax, run:
 

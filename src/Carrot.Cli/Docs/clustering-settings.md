@@ -18,7 +18,7 @@ The reusable configuration foundation for later named commands is active:
 - `--parameters-file` may accompany either selection form. It must identify an existing `.json` file no larger than 1,048,576 bytes containing valid UTF-8 JSON with one object root and unique property names.
 - Arbitrary nested parameter strings, numbers, Booleans, arrays, objects, and nulls are preserved exactly. The CLI does not invent algorithm-specific parameter schemas.
 
-Named and interactive selection prompts remain deferred even though their shared resolution and validation services are implemented.
+Named `preview` selection uses explicit command options and exact `/list` validation. Interactive selection prompts remain deferred even though their shared resolution and validation services are implemented.
 
 Carrot2 generally works best with roughly 100–1,000 concise documents. This recommendation is not enforced.
 

@@ -21,8 +21,8 @@ namespace Carrot.Cli.Composition;
 /// </summary>
 /// <remarks>
 /// Interactive preparation, reusable clustering configuration, in-memory Carrot processing,
-/// atomic JSON persistence, and explicit processed-result Excel export registrations are active.
-/// Named operational commands remain deferred.
+/// atomic JSON persistence, named request preview, and explicit processed-result Excel export registrations are active.
+/// Named process orchestration remains deferred.
 /// </remarks>
 /// <seealso cref="CarrotCliOptions"/>
 internal static class ServiceRegistration
@@ -65,6 +65,7 @@ internal static class ServiceRegistration
         services.AddSingleton<IDocumentTextExtractor, PdfDocumentExtractor>();
         services.AddSingleton<DocumentExtractionCoordinator>();
         services.AddSingleton<IDocumentPreparationWorkflow, DocumentPreparationWorkflow>();
+        services.AddTransient<IDocumentProcessingWorkflow, DocumentProcessingWorkflow>();
         services.AddSingleton<ClusterRequestFactory>();
         services.AddSingleton<ClusteringConfigurationResolver>();
         services.AddSingleton<ClusteringConfigurationValidator>();
@@ -94,6 +95,7 @@ internal static class ServiceRegistration
         services.AddTransient<ConsoleReporter>();
         services.AddTransient<ServerInformationPager>();
         services.AddTransient<ServerInfoCommand>();
+        services.AddTransient<PreviewCommand>();
         services.AddTransient<ServerInformationFlow>();
         services.AddSingleton<ICommandRunLogger, CommandRunLogger>();
         services.AddTransient<PreparedResultsPager>();

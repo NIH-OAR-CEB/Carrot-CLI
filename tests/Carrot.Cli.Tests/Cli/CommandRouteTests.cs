@@ -174,6 +174,8 @@ public sealed class CommandRouteTests
         // Assert
         Assert.NotNull(menu);
         Assert.NotNull(provider.GetRequiredService<ServerInfoCommand>());
+        Assert.NotNull(provider.GetRequiredService<PreviewCommand>());
+        Assert.NotNull(provider.GetRequiredService<IDocumentProcessingWorkflow>());
         Assert.NotNull(provider.GetRequiredService<ServerInformationFlow>());
         Assert.NotNull(provider.GetRequiredService<ServerInformationPager>());
         Assert.NotNull(provider.GetRequiredService<HelpRenderer>());

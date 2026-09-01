@@ -2,7 +2,7 @@
 
 Carrot CLI is a .NET 10 Windows command-line client compatible with the Carrot 4.8.6 Document Clustering Server API. Its interactive **Process Documents** workflow collects files, folders, and ZIP archives, extracts and reviews searchable text, validates `Lingo`/`English` through `GET /list`, submits the exact previewed package through `POST /cluster`, displays correlated results, and can explicitly save the latest success to Excel.
 
-## Planned commands
+## Commands
 
 ```text
 carrot-cli
@@ -32,7 +32,7 @@ Carrot2 generally works best with roughly 100–1,000 concise documents. This is
 
 The preamble source is [`docs/application-preamble.md`](docs/application-preamble.md). Builds and publishes place it at `Content/application-preamble.md` beside the application. Administrators can edit that deployed Markdown file and the next launch will display the revised text without rebuilding.
 
-`server-info` is an implemented noninteractive route suitable for Task Scheduler use: it calls only `/list`, prints sorted algorithms, languages, and template names, and never prompts. `process` and `preview` remain deferred. Their shared clustering foundation is implemented: direct selections use exact case-sensitive algorithm/language identifiers, while `--template` is mutually exclusive with both and causes those request-body fields to be omitted. A `--parameters-file` must be an existing `.json` file no larger than 1,048,576 bytes with valid UTF-8, one object root, and unique property names; arbitrary nested values are preserved. The implemented endpoint prompt belongs only to interactive **Process Prepared Items**.
+`server-info` and `preview` are implemented noninteractive routes suitable for Task Scheduler use. `server-info` calls only `/list`, prints sorted algorithms, languages, and template names. `preview` discovers and extracts supported input, validates its exact selection through `/list`, then atomically writes complete request JSON without calling `/cluster` or prompting. Without `--output`, preview writes `<input-parent>\<input-name>.request.json`; an existing output directory receives that same deterministic filename, while an explicit file path is used directly. Existing artifacts require `--overwrite`. Named `process` remains deferred. Direct selections use exact case-sensitive algorithm/language identifiers, while `--template` is mutually exclusive with both and causes those request-body fields to be omitted. A `--parameters-file` must be an existing `.json` file no larger than 1,048,576 bytes with valid UTF-8, one object root, and unique property names.
 
 ## Interactive menu
 
@@ -50,7 +50,7 @@ Available help topics are getting started, process, preview, server information,
 
 ## Supported input and output
 
-Interactive preparation accepts individual files, folders, and ZIP archives containing `.docx`, `.xlsx`, `.pptx`, `.txt`, `.md`, and searchable `.pdf` files. Each successfully prepared source becomes one in-memory Carrot document; corrupt, encrypted, image-only, unreadable, and empty documents remain visible as failed rows. JSON package preview writes the complete request to terminal scrollback only. Interactive processing sends that request to the selected endpoint and retains the response in memory. An explicit Excel export writes one `Results` row per category membership with repeated document paths, hashes, and up to 30,000 extracted characters. Unassigned submitted documents receive one blank-category row; failed preparation rows are not included. The atomic JSON persistence boundary is implemented, but named-command artifact naming and orchestration remain deferred; interactive processing and export still create no JSON sidecars or logs.
+Interactive preparation accepts individual files, folders, and ZIP archives containing `.docx`, `.xlsx`, `.pptx`, `.txt`, `.md`, and searchable `.pdf` files. Each successfully prepared source becomes one in-memory Carrot document; corrupt, encrypted, image-only, unreadable, and empty documents remain visible as failed rows. JSON package preview writes the complete request to terminal scrollback only. Named `preview` atomically writes the complete request JSON after `/list` validation and never submits it. Interactive processing sends that request to the selected endpoint and retains the response in memory. An explicit Excel export writes one `Results` row per category membership with repeated document paths, hashes, and up to 30,000 extracted characters. Unassigned submitted documents receive one blank-category row; failed preparation rows are not included. Interactive processing and export still create no JSON sidecars or logs.
 
 See [CLI reference](docs/cli-reference.md), [extraction rules](docs/extraction-rules.md), [output format](docs/output-format.md), [Task Scheduler guidance](docs/task-scheduler.md), and [troubleshooting](docs/troubleshooting.md).
 
@@ -62,4 +62,4 @@ dotnet build .\Carrot-CLI.slnx --no-restore
 dotnet test .\Carrot-CLI.slnx --no-build --no-restore
 ```
 
-The active test suite verifies command metadata, preamble loading, interactive navigation, interactive Server Information endpoint/list execution, quoted paths, folder and ZIP safety, all supported extractors, deduplication, preparation outcomes, endpoint validation, HTTP request contracts, redirect/retry/timeout/cancellation behavior, recursive membership mapping, source correlation, retained-result state, paging/Escape behavior, output-path and overwrite decisions, deterministic report mapping, atomic formula-safe workbooks, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Named process/preview and architecture-scanner acceptances remain deferred.
+The active test suite verifies command metadata, named preview request construction and no-cluster behavior, preamble loading, interactive navigation, interactive Server Information endpoint/list execution, quoted paths, folder and ZIP safety, all supported extractors, deduplication, preparation outcomes, endpoint validation, HTTP request contracts, redirect/retry/timeout/cancellation behavior, recursive membership mapping, source correlation, retained-result state, paging/Escape behavior, output-path and overwrite decisions, deterministic report mapping, atomic formula-safe workbooks, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Named process and architecture-scanner acceptances remain deferred.

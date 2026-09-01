@@ -1,6 +1,6 @@
 # Named Request Preview
 
-Status: Pending
+Status: Complete
 
 Category: Operational commands
 
@@ -62,3 +62,9 @@ Reuse the implemented preparation workflow and shared `ClusterRequestFactory`, t
 
 - Named processing and the interactive main-menu Preview Request.
 
+## 11. Completion Evidence
+
+- `DocumentProcessingWorkflow.PreviewAsync` now composes shared preparation, clustering resolution, `/list` validation, `ClusterRequestFactory`, and atomic JSON persistence. It creates no cluster submission, preserves usable partial preparation, and maps input, configuration, endpoint, output, and cancellation outcomes to stable run results.
+- `PreviewCommand` resolves named settings without prompting, reports normal terminal results, and is registered with the production workflow graph. Omitted output uses `<input-parent>\<input-name>.request.json`; an existing output directory receives that same input-derived filename.
+- Focused fake-boundary tests prove the saved request is structurally identical to the shared factory result and that `/cluster` is never called. Command-harness coverage verifies resolution, output reporting, invalid configuration, and cancellation handling.
+- README, CLI reference, Task Scheduler, embedded help, privacy, exit-code, output, preview, and troubleshooting guidance now document active named preview behavior while retaining interactive Preview Request and named process as deferred work.
