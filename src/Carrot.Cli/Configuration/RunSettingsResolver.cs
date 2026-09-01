@@ -206,16 +206,45 @@ internal sealed class RunSettingsResolver
 
         ArgumentNullException.ThrowIfNull(settings);
 
+        var result = ResolveEndpointSettings(settings);
+        return result.Status == OperationStatus.Failure
+            ? OperationResult<Uri>.Failure(result.Messages)
+            : OperationResult<Uri>.Success(result.Value!.Endpoint);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Resolves the endpoint and complete timeout settings for a noninteractive API command.
+    /// </summary>
+    /// <param name="settings">The endpoint settings supplied by Spectre.</param>
+    /// <returns>A normalized endpoint and positive timeout, or structured configuration messages.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="settings"/> is null.</exception>
+    /// <seealso cref="EndpointSettings"/>
+    internal OperationResult<ResolvedEndpointSettings> ResolveEndpointSettings(EndpointSettings settings)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(settings);
+
         var endpointResult = resolveEndpoint(settings.Endpoint);
         if (endpointResult.Status == OperationStatus.Failure)
         {
-            return endpointResult;
+            return OperationResult<ResolvedEndpointSettings>.Failure(endpointResult.Messages);
         }
 
         var timeoutResult = resolveTimeout(settings.TimeoutSeconds);
-        return timeoutResult.Status == OperationStatus.Failure
-            ? OperationResult<Uri>.Failure(timeoutResult.Messages)
-            : endpointResult;
+        if (timeoutResult.Status == OperationStatus.Failure)
+        {
+            return OperationResult<ResolvedEndpointSettings>.Failure(timeoutResult.Messages);
+        }
+
+        return OperationResult<ResolvedEndpointSettings>.Success(new ResolvedEndpointSettings
+        {
+            Endpoint = endpointResult.Value!,
+            Timeout = timeoutResult.Value
+        });
 
         #endregion
     }
@@ -688,6 +717,21 @@ internal sealed class RunSettingsResolver
         public TimeSpan Timeout { get; init; }
 
         #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Carries the normalized endpoint and timeout shared by noninteractive API commands.
+    /// </summary>
+    internal sealed record ResolvedEndpointSettings
+    {
+        /**************************************************************/
+        /// <summary>Gets the normalized Carrot service endpoint.</summary>
+        public required Uri Endpoint { get; init; }
+
+        /**************************************************************/
+        /// <summary>Gets the positive timeout for the complete API operation.</summary>
+        public TimeSpan Timeout { get; init; }
     }
 
     #endregion

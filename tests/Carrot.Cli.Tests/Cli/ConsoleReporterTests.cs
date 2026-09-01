@@ -158,9 +158,12 @@ public sealed class ConsoleReporterTests
         // Assert
         Assert.Equal(
             "Algorithms and languages:\n"
+            + "\n"
             + "  Alpha: (none)\n"
             + "  Zeta[Algorithm]: English, Polish\n"
+            + "\n"
             + "Templates:\n"
+            + "\n"
             + "  [a]-template\n"
             + "  z-template\n",
             console.Output.ReplaceLineEndings("\n"));
@@ -191,7 +194,7 @@ public sealed class ConsoleReporterTests
 
         // Assert
         Assert.Equal(
-            "Algorithms and languages:\n  (none)\nTemplates:\n  (none)\n",
+            "Algorithms and languages:\n\n  (none)\n\nTemplates:\n\n  (none)\n",
             console.Output.ReplaceLineEndings("\n"));
 
         #endregion

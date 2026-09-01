@@ -9,7 +9,8 @@ namespace Carrot.Cli.Cli.UI;
 /// </summary>
 /// <remarks>
 /// Process Documents delegates to its implemented preparation and review coordinator. Preview
-/// Request and Server Information retain deferred Execute actions inside their workflow menus.
+/// Request retains a deferred Execute action, while Server Information delegates endpoint and
+/// server-configuration work to its focused interactive flow.
 /// </remarks>
 /// <seealso cref="HelpRenderer"/>
 /// <seealso cref="AboutRenderer"/>
@@ -24,6 +25,7 @@ internal sealed class InteractiveMenu
     private readonly HelpRenderer _helpRenderer;
     private readonly AboutRenderer _aboutRenderer;
     private readonly ProcessDocumentsMenu _processDocumentsMenu;
+    private readonly ServerInformationFlow _serverInformationFlow;
 
     /**************************************************************/
     /// <summary>Defines stable actions available from the application main menu.</summary>
@@ -55,7 +57,7 @@ internal sealed class InteractiveMenu
     }
 
     /**************************************************************/
-    /// <summary>Defines stable actions shared by each deferred workflow menu.</summary>
+    /// <summary>Defines stable actions shared by the Preview Request workflow menu.</summary>
     private enum WorkflowMenuChoice
     {
         /**************************************************************/
@@ -80,12 +82,14 @@ internal sealed class InteractiveMenu
     /// <param name="helpRenderer">The curated Markdown help renderer.</param>
     /// <param name="aboutRenderer">The application-information renderer.</param>
     /// <param name="processDocumentsMenu">The implemented document preparation and review menu.</param>
+    /// <param name="serverInformationFlow">The endpoint-backed Server Information flow.</param>
     public InteractiveMenu(
         IAnsiConsole console,
         ApplicationPreambleRenderer preambleRenderer,
         HelpRenderer helpRenderer,
         AboutRenderer aboutRenderer,
-        ProcessDocumentsMenu processDocumentsMenu)
+        ProcessDocumentsMenu processDocumentsMenu,
+        ServerInformationFlow serverInformationFlow)
     {
         #region implementation
 
@@ -94,12 +98,14 @@ internal sealed class InteractiveMenu
         ArgumentNullException.ThrowIfNull(helpRenderer);
         ArgumentNullException.ThrowIfNull(aboutRenderer);
         ArgumentNullException.ThrowIfNull(processDocumentsMenu);
+        ArgumentNullException.ThrowIfNull(serverInformationFlow);
 
         _console = console;
         _preambleRenderer = preambleRenderer;
         _helpRenderer = helpRenderer;
         _aboutRenderer = aboutRenderer;
         _processDocumentsMenu = processDocumentsMenu;
+        _serverInformationFlow = serverInformationFlow;
 
         #endregion
     }
@@ -141,7 +147,7 @@ internal sealed class InteractiveMenu
                             .ConfigureAwait(false);
                         break;
                     case MainMenuChoice.ServerInfo:
-                        await runWorkflowMenuAsync("Server Information", "server-info", cancellationToken)
+                        await runServerInformationMenuAsync(cancellationToken)
                             .ConfigureAwait(false);
                         break;
                     case MainMenuChoice.Help:
@@ -161,6 +167,50 @@ internal sealed class InteractiveMenu
         {
             _console.MarkupLine("[yellow]Cancelled.[/]");
             return ExitCodes.Cancellation;
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Runs the interactive Server Information submenu and its endpoint-backed Execute action.
+    /// </summary>
+    /// <param name="cancellationToken">The token signaling console cancellation.</param>
+    /// <returns>A task representing Server Information submenu navigation.</returns>
+    private async Task runServerInformationMenuAsync(CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        while (true)
+        {
+            var choice = await new SelectionPrompt<WorkflowMenuChoice>()
+                .Title("[bold orange1]Server Information[/]")
+                .HighlightStyle(new Style(Color.Black, Color.Orange1))
+                .UseConverter(item => item switch
+                {
+                    WorkflowMenuChoice.Execute => "Execute",
+                    WorkflowMenuChoice.Help => "Help",
+                    WorkflowMenuChoice.Back => "Back to Main Menu",
+                    _ => item.ToString()
+                })
+                .AddChoices(Enum.GetValues<WorkflowMenuChoice>())
+                .ShowAsync(_console, cancellationToken)
+                .ConfigureAwait(false);
+
+            switch (choice)
+            {
+                case WorkflowMenuChoice.Execute:
+                    await _serverInformationFlow.RunAsync(cancellationToken).ConfigureAwait(false);
+                    break;
+                case WorkflowMenuChoice.Help:
+                    await _helpRenderer.RenderAsync("server-info", cancellationToken).ConfigureAwait(false);
+                    break;
+                case WorkflowMenuChoice.Back:
+                    return;
+                default:
+                    throw new InvalidOperationException($"Unsupported server-information action: {choice}");
+            }
         }
 
         #endregion

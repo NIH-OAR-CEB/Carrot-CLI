@@ -26,9 +26,9 @@ Preview uses the input, endpoint, clustering, timeout, output, recursive, and ov
 
 ## Server Information
 
-Server information accepts `--endpoint` and `--timeout-seconds` and will call `/list` when implemented.
+Server information accepts `--endpoint` and `--timeout-seconds`, calls only `/list`, and displays sorted algorithm, language, and template identifiers. It does not display template bodies or write files. The named command never prompts; the interactive menu prompts for a nonpersisted endpoint and uses `http://localhost:8080/service` as its default. The named endpoint option takes precedence over `CARROTCLI_ENDPOINT`; its exit codes are `0` for success, `1` for invalid configuration, `4` for endpoint or list failures, and `130` for cancellation.
 
-Named operational commands never prompt. Their execution remains deferred; shared settings validation, clustering resolution, exact `/list` validation, Help, About, Version, and interactive document processing are active.
+Named operational commands never prompt. Server information execution is active; process and preview execution remain deferred. Shared settings validation, clustering resolution, exact `/list` validation, Help, About, Version, interactive document processing, and interactive Server Information are active.
 
 ## Command-line usage
 

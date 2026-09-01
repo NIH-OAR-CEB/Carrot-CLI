@@ -14,7 +14,7 @@ carrot-cli about
 carrot-cli --version
 ```
 
-No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. **Process Documents** opens an editable input list; **Preview Request** and **Server Information** retain their Execute, Help, and Back menus and still report `Pending Implementation`. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory. Long help topics are divided into terminal-sized pages with Next Page, Previous Page, Close Help, and Escape navigation; redirected command output remains complete and unpaged.
+No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. **Process Documents** opens an editable input list; **Preview Request** retains its deferred Execute action, while **Server Information** prompts for an endpoint, calls `/list`, and displays the advertised configuration without persisting the endpoint. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory. Long help topics are divided into terminal-sized pages with Next Page, Previous Page, Close Help, and Escape navigation; redirected command output remains complete and unpaged.
 
 Within **Process Documents**, select **Add Path** once for each input. Paths may be unquoted or surrounded by matching single or double quotes, for example:
 
@@ -32,7 +32,7 @@ Carrot2 generally works best with roughly 100–1,000 concise documents. This is
 
 The preamble source is [`docs/application-preamble.md`](docs/application-preamble.md). Builds and publishes place it at `Content/application-preamble.md` beside the application. Administrators can edit that deployed Markdown file and the next launch will display the revised text without rebuilding.
 
-`process`, `preview`, and `server-info` remain deferred noninteractive routes intended for future Task Scheduler use. Their shared clustering foundation is implemented: direct selections use exact case-sensitive algorithm/language identifiers, while `--template` is mutually exclusive with both and causes those request-body fields to be omitted. A `--parameters-file` must be an existing `.json` file no larger than 1,048,576 bytes with valid UTF-8, one object root, and unique property names; arbitrary nested values are preserved. The implemented endpoint prompt belongs only to interactive **Process Prepared Items**.
+`server-info` is an implemented noninteractive route suitable for Task Scheduler use: it calls only `/list`, prints sorted algorithms, languages, and template names, and never prompts. `process` and `preview` remain deferred. Their shared clustering foundation is implemented: direct selections use exact case-sensitive algorithm/language identifiers, while `--template` is mutually exclusive with both and causes those request-body fields to be omitted. A `--parameters-file` must be an existing `.json` file no larger than 1,048,576 bytes with valid UTF-8, one object root, and unique property names; arbitrary nested values are preserved. The implemented endpoint prompt belongs only to interactive **Process Prepared Items**.
 
 ## Interactive menu
 
@@ -40,7 +40,7 @@ The preamble source is [`docs/application-preamble.md`](docs/application-preambl
 Main Menu
 |- Process Documents -> Add/Remove Paths -> Prepare -> Review Pages -> JSON Preview / Process / Result Pages / Excel Export
 |- Preview Request -> Execute | Help | Back
-|- Server Information -> Execute | Help | Back
+|- Server Information -> Enter endpoint -> Execute / Help / Back -> Algorithms, languages, templates
 |- Help
 |- About
 `- Exit
@@ -62,4 +62,4 @@ dotnet build .\Carrot-CLI.slnx --no-restore
 dotnet test .\Carrot-CLI.slnx --no-build --no-restore
 ```
 
-The active test suite verifies command metadata, preamble loading, interactive navigation, quoted paths, folder and ZIP safety, all supported extractors, deduplication, preparation outcomes, endpoint validation, HTTP request contracts, redirect/retry/timeout/cancellation behavior, recursive membership mapping, source correlation, retained-result state, paging/Escape behavior, output-path and overwrite decisions, deterministic report mapping, atomic formula-safe workbooks, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Named-command and architecture-scanner acceptances remain deferred.
+The active test suite verifies command metadata, preamble loading, interactive navigation, interactive Server Information endpoint/list execution, quoted paths, folder and ZIP safety, all supported extractors, deduplication, preparation outcomes, endpoint validation, HTTP request contracts, redirect/retry/timeout/cancellation behavior, recursive membership mapping, source correlation, retained-result state, paging/Escape behavior, output-path and overwrite decisions, deterministic report mapping, atomic formula-safe workbooks, dependency injection, embedded resources, Markdown escaping, and Help/About routes. Named process/preview and architecture-scanner acceptances remain deferred.

@@ -15,7 +15,7 @@
 - **Excel path rejected:** press Enter to accept the complete timestamped suggestion, or edit it to a `.xlsx` filename under an existing directory. Relative paths and matching surrounding quotes are accepted.
 - **Excel export failed:** close the workbook if another application has locked it, verify write permission, or choose another destination. The processed result remains available and no partial workbook replaces the destination.
 - **JSON artifact persistence failed:** verify the destination parent exists and is writable, and enable overwrite only when replacement is intended. Failure or cancellation preserves an existing destination and removes temporary output. Named commands will use this implemented boundary in later milestones.
-- **Preview or Server Information says Pending Implementation:** those interactive routes intentionally remain deferred.
+- **Preview says Pending Implementation:** the interactive Preview Request route remains deferred. Server Information should prompt for an endpoint and call `/list`; correct an endpoint that does not end in `/service`, then retry.
 - **Missing endpoint:** future named commands will require `--endpoint` or `CARROTCLI_ENDPOINT`.
 - **Scanned PDF:** OCR is not included; provide a searchable text layer.
 - **Content appears in the terminal or leaves the workstation:** prepared rows show a short preview, Preview JSON Package shows complete ready-document content, and Process Prepared Items sends complete extracted text to the selected endpoint; see Privacy before handling sensitive content.

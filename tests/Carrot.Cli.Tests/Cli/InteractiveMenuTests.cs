@@ -1,5 +1,6 @@
 using Carrot.Cli.Cli.UI;
 using Carrot.Cli.CarrotApi;
+using Carrot.Cli.CarrotApi.Contracts;
 using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.Input;
@@ -13,7 +14,7 @@ namespace Carrot.Cli.Tests.Cli;
 
 /**************************************************************/
 /// <summary>
-/// Verifies main-menu navigation between implemented processing and deferred workflow routes.
+/// Verifies main-menu navigation between implemented processing, Server Information, and deferred workflow routes.
 /// </summary>
 public sealed class InteractiveMenuTests
 {
@@ -49,13 +50,12 @@ public sealed class InteractiveMenuTests
 
     /**************************************************************/
     /// <summary>
-    /// Verifies each workflow supports Execute, Help, and Back and reports the exact pending status.
+    /// Verifies the deferred Preview Request workflow supports Execute, Help, and Back and reports its pending status.
     /// </summary>
     /// <param name="mainMenuOffset">The number of down-arrow inputs needed to select the workflow.</param>
     /// <param name="workflowTitle">The expected workflow title.</param>
     [Theory]
     [InlineData(1, "Preview Request")]
-    [InlineData(2, "Server Information")]
     public async Task RunAsync_WorkflowExecute_WritesPendingAndReturnsToMain(
         int mainMenuOffset,
         string workflowTitle)
@@ -83,6 +83,43 @@ public sealed class InteractiveMenuTests
         Assert.Contains("Help", console.Output, StringComparison.Ordinal);
         Assert.Contains("Back to Main Menu", console.Output, StringComparison.Ordinal);
         Assert.Contains("Pending Implementation", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Verifies Server Information prompts for the default endpoint, displays list data, and returns to its submenu.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_ServerInformation_ExecutesListAndReturnsToMain()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = createInteractiveConsole();
+        pushDownKeys(console, 2);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushTextWithEnter(string.Empty);
+        pushDownKeys(console, 2);
+        console.Input.PushKey(ConsoleKey.Enter);
+        pushDownKeys(console, 5);
+        console.Input.PushKey(ConsoleKey.Enter);
+        var menu = createMenu(console);
+
+        // Act
+        var exitCode = await menu.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Contains("Loading Carrot server information...", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("informationâ", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Algorithms and languages:\n\n", console.Output, StringComparison.Ordinal);
+        Assert.Contains("\n\nTemplates:\n\n", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Lingo: English", console.Output, StringComparison.Ordinal);
+        Assert.Contains("starter", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pending Implementation", console.Output, StringComparison.Ordinal);
 
         #endregion
     }
@@ -275,7 +312,21 @@ public sealed class InteractiveMenuTests
             new ProcessedResultsPager(console, options, exportFlow),
             exportFlow,
             options);
-        return new InteractiveMenu(console, preambleRenderer, helpRenderer, aboutRenderer, processDocumentsMenu);
+        var reporter = new ConsoleReporter(console);
+        var serverInformationFlow = new ServerInformationFlow(
+            console,
+            new EndpointResolver(),
+            new StubServerInformationClient(),
+            reporter,
+            new ServerInformationPager(console, reporter),
+            options);
+        return new InteractiveMenu(
+            console,
+            preambleRenderer,
+            helpRenderer,
+            aboutRenderer,
+            processDocumentsMenu,
+            serverInformationFlow);
 
         #endregion
     }
@@ -418,6 +469,58 @@ public sealed class InteractiveMenuTests
                     Message = "Export was not expected during navigation testing.",
                     Severity = OperationMessageSeverity.Error
                 }]));
+
+            #endregion
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Returns deterministic list data and fails if interactive navigation calls the cluster endpoint.</summary>
+    private sealed class StubServerInformationClient : ICarrotApiClient
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Returns one deterministic algorithm and template for interactive assertions.</summary>
+        public Task<OperationResult<ListResponse>> GetConfigurationAsync(
+            Uri serviceEndpoint,
+            TimeSpan timeout,
+            bool? indent,
+            CancellationToken cancellationToken)
+        {
+            #region implementation
+
+            return Task.FromResult(OperationResult<ListResponse>.Success(
+                new ListResponse
+                {
+                    Algorithms = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+                    {
+                        ["Lingo"] = ["English"]
+                    },
+                    Templates = new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.Ordinal)
+                    {
+                        ["starter"] = System.Text.Json.JsonSerializer.SerializeToElement(new { algorithm = "Lingo" })
+                    }
+                }));
+
+            #endregion
+        }
+
+        /**************************************************************/
+        /// <summary>Rejects cluster calls because the interactive server-information flow must call only list.</summary>
+        public Task<OperationResult<ClusterResponse>> ClusterAsync(
+            Uri serviceEndpoint,
+            ClusterRequest request,
+            string? template,
+            TimeSpan timeout,
+            bool? indent,
+            CancellationToken cancellationToken)
+        {
+            #region implementation
+
+            throw new InvalidOperationException("Server information must not call the cluster endpoint.");
 
             #endregion
         }

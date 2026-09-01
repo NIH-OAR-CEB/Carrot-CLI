@@ -1,6 +1,6 @@
 # Named Server Information
 
-Status: Pending
+Status: Complete
 
 Category: Operational commands
 
@@ -59,4 +59,3 @@ Use the shared endpoint resolver and reporter from the foundation plan. The comm
 ## 10. Deferred Follow-up
 
 - Interactive Server Information and clustering selection UI.
-

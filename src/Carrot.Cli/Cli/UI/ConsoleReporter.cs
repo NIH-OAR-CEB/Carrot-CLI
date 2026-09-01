@@ -98,32 +98,96 @@ internal sealed class ConsoleReporter
 
         ArgumentNullException.ThrowIfNull(configuration);
 
-        _console.WriteLine("Algorithms and languages:");
+        WriteServerInfoLines(CreateServerInfoLines(configuration));
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Writes preformatted server-information lines as literal console text.
+    /// </summary>
+    /// <param name="lines">The ordered server-information lines to display.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="lines"/> is null.</exception>
+    /// <seealso cref="ListResponse"/>
+    internal void WriteServerInfoLines(IReadOnlyList<string> lines)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(lines);
+        foreach (var line in lines)
+        {
+            _console.Write(new Text($"{line}{Environment.NewLine}"));
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Creates deterministic literal lines for a server-information response.
+    /// </summary>
+    /// <param name="configuration">The exact configuration response contract.</param>
+    /// <returns>Ordered headings and identifiers suitable for unpaged or paged output.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration"/> is null.</exception>
+    /// <seealso cref="ListResponse"/>
+    internal static IReadOnlyList<string> CreateServerInfoLines(ListResponse configuration)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(configuration);
+        var lines = new List<string> { "Algorithms and languages:", string.Empty };
         if (configuration.Algorithms.Count == 0)
         {
-            _console.WriteLine("  (none)");
+            lines.Add("  (none)");
         }
         else
         {
-            foreach (var algorithm in configuration.Algorithms.OrderBy(pair => pair.Key, StringComparer.Ordinal))
-            {
-                var languages = algorithm.Value.Count == 0
-                    ? "(none)"
-                    : string.Join(", ", algorithm.Value.OrderBy(value => value, StringComparer.Ordinal));
-                _console.Write(new Text($"  {algorithm.Key}: {languages}{Environment.NewLine}"));
-            }
+            lines.AddRange(configuration.Algorithms
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(algorithm =>
+                {
+                    var languages = algorithm.Value.Count == 0
+                        ? "(none)"
+                        : string.Join(", ", algorithm.Value.OrderBy(value => value, StringComparer.Ordinal));
+                    return $"  {algorithm.Key}: {languages}";
+                }));
         }
 
-        _console.WriteLine("Templates:");
+        lines.Add(string.Empty);
+        lines.Add("Templates:");
+        lines.Add(string.Empty);
         if (configuration.Templates.Count == 0)
         {
-            _console.WriteLine("  (none)");
-            return;
+            lines.Add("  (none)");
+        }
+        else
+        {
+            lines.AddRange(configuration.Templates.Keys
+                .OrderBy(value => value, StringComparer.Ordinal)
+                .Select(template => $"  {template}"));
         }
 
-        foreach (var template in configuration.Templates.Keys.OrderBy(value => value, StringComparer.Ordinal))
+        return lines;
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
+    /// Writes a collection of coded diagnostics in their supplied order.
+    /// </summary>
+    /// <param name="messages">The safe operation messages to display.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages"/> is null.</exception>
+    /// <seealso cref="OperationMessage"/>
+    internal void WriteMessages(IReadOnlyList<OperationMessage> messages)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(messages);
+        foreach (var message in messages)
         {
-            _console.Write(new Text($"  {template}{Environment.NewLine}"));
+            writeMessage(message);
         }
 
         #endregion

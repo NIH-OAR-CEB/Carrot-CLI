@@ -1,5 +1,6 @@
 using Carrot.Cli.Cli.UI;
 using Carrot.Cli.Cli.Reporting;
+using Carrot.Cli.Cli.Commands;
 using Carrot.Cli.CarrotApi;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.Common;
@@ -91,6 +92,9 @@ internal static class ServiceRegistration
         services.AddTransient<HelpRenderer>();
         services.AddTransient<AboutRenderer>();
         services.AddTransient<ConsoleReporter>();
+        services.AddTransient<ServerInformationPager>();
+        services.AddTransient<ServerInfoCommand>();
+        services.AddTransient<ServerInformationFlow>();
         services.AddSingleton<ICommandRunLogger, CommandRunLogger>();
         services.AddTransient<PreparedResultsPager>();
         services.AddTransient<PreparedJsonPackagePager>();

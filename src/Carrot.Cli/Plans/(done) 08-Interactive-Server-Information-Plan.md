@@ -1,6 +1,6 @@
 # Interactive Server Information
 
-Status: Pending
+Status: Complete
 
 Category: Interactive parity
 
@@ -57,4 +57,3 @@ Add a focused `ServerInformationFlow` that prompts with the existing localhost e
 ## 10. Deferred Follow-up
 
 - Interactive Preview Request and clustering-setting selection.
-
