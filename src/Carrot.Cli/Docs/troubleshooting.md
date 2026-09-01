@@ -20,7 +20,7 @@
 - **Scanned PDF:** OCR is not included; provide a searchable text layer.
 - **Content appears in the terminal or leaves the workstation:** prepared rows show a short preview, Preview JSON Package shows complete ready-document content, and Process Prepared Items sends complete extracted text to the selected endpoint; see Privacy before handling sensitive content.
 - **JSON preview looks truncated:** `↪` marks the visual continuation of the same long JSON string. Use Next Page to continue; the serialized value is not truncated.
-- **Scheduled task has no output:** configure **Start in**, quote paths, and provide `--log-file` when operational commands are implemented.
+- **Scheduled task has no output:** configure **Start in**, quote paths, and provide `--log-file` beneath an existing writable directory. `--quiet` intentionally hides normal summaries but still writes warnings and errors to both the terminal and the requested log. Named command orchestration remains deferred.
 
 ## Command-line usage
 

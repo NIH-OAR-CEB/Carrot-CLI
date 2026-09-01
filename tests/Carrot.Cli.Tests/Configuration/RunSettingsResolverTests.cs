@@ -343,6 +343,8 @@ public sealed class RunSettingsResolverTests
     [InlineData("missing-input", "input.path.missing")]
     [InlineData("invalid-timeout", "timeout.invalid")]
     [InlineData("missing-output-parent", "output.path.parent")]
+    [InlineData("missing-log-parent", "log.path.parent")]
+    [InlineData("directory-log-path", "log.path.directory")]
     [InlineData("missing-parameters", "parameters.path.missing")]
     [InlineData("path-conflict", "paths.conflict")]
     public void ResolveProcess_InvalidSettings_ReturnsStructuredFailure(string scenario, string expectedCode)
@@ -356,6 +358,7 @@ public sealed class RunSettingsResolverTests
             var input = Directory.CreateDirectory(Path.Combine(root, "input")).FullName;
             var missingInput = Path.Combine(root, "missing-input");
             var missingOutput = Path.Combine(root, "missing-parent", "report.xlsx");
+            var missingLog = Path.Combine(root, "missing-log-parent", "run.log");
             var missingParameters = Path.Combine(root, "missing.json");
             var sharedPath = Path.Combine(root, "shared.out");
             using var provider = createProvider(
@@ -370,6 +373,8 @@ public sealed class RunSettingsResolverTests
                 "missing-input" => new ProcessSettings { InputPath = missingInput },
                 "invalid-timeout" => new ProcessSettings { InputPath = input, TimeoutSeconds = -1 },
                 "missing-output-parent" => new ProcessSettings { InputPath = input, OutputPath = missingOutput },
+                "missing-log-parent" => new ProcessSettings { InputPath = input, LogFile = missingLog },
+                "directory-log-path" => new ProcessSettings { InputPath = input, LogFile = root },
                 "missing-parameters" => new ProcessSettings { InputPath = input, ParametersFile = missingParameters },
                 "path-conflict" => new ProcessSettings
                 {

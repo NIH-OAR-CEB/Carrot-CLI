@@ -20,13 +20,15 @@ public sealed class ConsoleReporterTests
     /// <summary>
     /// Verifies normal run reporting preserves message and artifact order with a stable summary.
     /// </summary>
-    [Fact]
-    public void WriteRunResult_NormalOutput_WritesDeterministicSummary()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WriteRunResult_NormalOutput_WritesDeterministicSummary(bool interactive)
     {
         #region implementation
 
         // Arrange
-        using var console = createConsole(interactive: true);
+        using var console = createConsole(interactive);
         var reporter = new ConsoleReporter(console);
         var result = new ProcessRunResult
         {
@@ -67,13 +69,15 @@ public sealed class ConsoleReporterTests
     /// <summary>
     /// Verifies quiet mode suppresses informational and summary output but retains warnings and errors.
     /// </summary>
-    [Fact]
-    public void WriteRunResult_QuietOutput_RetainsWarningsAndErrorsOnly()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WriteRunResult_QuietOutput_RetainsWarningsAndErrorsOnly(bool interactive)
     {
         #region implementation
 
         // Arrange
-        using var console = createConsole(interactive: false);
+        using var console = createConsole(interactive);
         var reporter = new ConsoleReporter(console);
         var result = new ProcessRunResult
         {

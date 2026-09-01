@@ -12,7 +12,7 @@
 - Excel output path rejected: press Enter to accept the complete timestamped suggestion, or edit it to a filename ending in `.xlsx` under an existing directory. Matching surrounding quotes and relative paths are accepted.
 - Excel export failed: close an existing workbook if it is locked, verify destination write permission, and retry or select another path. The retained processed result remains available and a failed save leaves no partial destination.
 - JSON artifact persistence failed: verify the destination parent exists and is writable, then approve overwrite only when replacement is intended. Atomic persistence preserves an existing destination and removes its temporary sibling after failure or cancellation. Named commands do not invoke this implemented boundary until their later orchestration milestones.
-- Scheduled task starts but produces no output: set the `Start in` directory and an explicit `--log-file`, then inspect the task's last result code.
+- Scheduled task starts but produces no output: set the `Start in` directory and an explicit `--log-file` under an existing writable directory, then inspect the task's last result code. `--quiet` hides normal summaries but never warnings or errors; named command orchestration remains deferred.
 - Partial success (`2`): inspect failed workbook rows while retaining valid clustering results.
 - Welcome text is missing: confirm `Content/application-preamble.md` exists beside the deployed application and is readable. The menu remains available and directs operators to `carrot-cli help getting-started` when the file cannot be loaded.
 

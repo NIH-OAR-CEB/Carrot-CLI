@@ -1,6 +1,6 @@
 # Command Logging and Quiet Output
 
-Status: Pending
+Status: Complete
 
 Category: Artifacts and observability
 
@@ -62,3 +62,9 @@ Add a command-run reporting boundary that writes timestamped, safe UTF-8 diagnos
 
 - Integration of the logger into the named preview and process command plans.
 
+## 11. Completion Evidence
+
+- Added the singleton `ICommandRunLogger` / `CommandRunLogger` boundary, with normalized optional paths, append-only UTF-8 records, UTC invariant timestamps, one-record-per-line sanitization, in-process serialization, and explicit cancellation logging.
+- Registered the logger without changing interactive menus or activating deferred named process/preview command execution.
+- Expanded console-reporter coverage across interactive and redirected console capabilities, and added file-logger coverage for complete safe records, append behavior, UTF-8, cancellation, no-op omitted paths, concurrency, and null/invalid contracts.
+- Updated Task Scheduler, privacy, troubleshooting, and command-option documentation to state parent-directory, retention, quiet-output, and safe-data boundaries.

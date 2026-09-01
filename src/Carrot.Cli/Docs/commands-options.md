@@ -14,7 +14,7 @@ carrot-cli --version
 
 ## Process
 
-Planned named-command options are `--input`, `--endpoint`, `--output`, `--recursive`, `--algorithm`, `--language`, `--template`, `--parameters-file`, `--timeout-seconds`, `--overwrite`, `--no-json-artifacts`, `--quiet`, and `--log-file`.
+Planned named-command options are `--input`, `--endpoint`, `--output`, `--recursive`, `--algorithm`, `--language`, `--template`, `--parameters-file`, `--timeout-seconds`, `--overwrite`, `--no-json-artifacts`, `--quiet`, and `--log-file`. `--quiet` suppresses normal progress and final summaries but never warnings or errors. `--log-file` must have an existing parent directory and appends safe UTF-8 lifecycle, warning/error, exit-code, and artifact-path records; it never records document content, API payloads, credentials, or server stack traces.
 
 Clustering option resolution is implemented for those later commands. Without `--template`, omitted algorithm and language values default to exact `Lingo` and `English` identifiers. `--template` is mutually exclusive with both direct-selection options and delegates algorithm/language to the exact advertised server template. A `--parameters-file` may accompany either form and must be an existing `.json` file of at most 1,048,576 bytes containing valid UTF-8 JSON with one object root and unique property names.
 
