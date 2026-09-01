@@ -179,6 +179,8 @@ public sealed class CommandRouteTests
         Assert.NotNull(provider.GetRequiredService<IPreparedDocumentProcessor>());
         Assert.NotNull(provider.GetRequiredService<EndpointResolver>());
         Assert.NotNull(provider.GetRequiredService<RunSettingsResolver>());
+        Assert.NotNull(provider.GetRequiredService<ClusteringConfigurationResolver>());
+        Assert.NotNull(provider.GetRequiredService<ClusteringConfigurationValidator>());
         Assert.NotNull(provider.GetRequiredService<ConsoleReporter>());
         Assert.NotNull(provider.GetRequiredService<ProcessedResultsPager>());
         Assert.NotNull(provider.GetRequiredService<IRunIdProvider>());

@@ -110,7 +110,7 @@ internal sealed class RunSettingsResolver
         }
 
         var common = commonResult.Value!;
-        var conflictResult = validateDistinctPaths(outputPath, logFile, common.ParametersFile);
+        var conflictResult = validateDistinctPaths(outputPath, logFile, common.Clustering.ParametersFile);
         if (conflictResult is not null)
         {
             return OperationResult<ProcessRequest>.Failure([conflictResult]);
@@ -123,10 +123,7 @@ internal sealed class RunSettingsResolver
                 Endpoint = common.Endpoint,
                 OutputPath = outputPath,
                 Recursive = settings.Recursive,
-                Algorithm = common.Algorithm,
-                Language = common.Language,
-                Template = common.Template,
-                ParametersFile = common.ParametersFile,
+                Clustering = common.Clustering,
                 Timeout = common.Timeout,
                 Overwrite = settings.Overwrite,
                 WriteJsonArtifacts = !settings.NoJsonArtifacts,
@@ -170,7 +167,7 @@ internal sealed class RunSettingsResolver
         }
 
         var common = commonResult.Value!;
-        if (pathsEqual(outputPath, common.ParametersFile))
+        if (pathsEqual(outputPath, common.Clustering.ParametersFile))
         {
             return failure<PreviewRequest>(
                 "paths.conflict",
@@ -184,10 +181,7 @@ internal sealed class RunSettingsResolver
                 Endpoint = common.Endpoint,
                 OutputPath = outputPath,
                 Recursive = settings.Recursive,
-                Algorithm = common.Algorithm,
-                Language = common.Language,
-                Template = common.Template,
-                ParametersFile = common.ParametersFile,
+                Clustering = common.Clustering,
                 Timeout = common.Timeout,
                 Overwrite = settings.Overwrite
             });
@@ -261,24 +255,20 @@ internal sealed class RunSettingsResolver
             return OperationResult<ResolvedClusteringSettings>.Failure(timeoutResult.Messages);
         }
 
-        var algorithmResult = resolveRequiredName(
-            settings.Algorithm,
-            _options.DefaultAlgorithm,
-            "clustering.algorithm.empty",
-            "The clustering algorithm must not be empty.");
-        if (algorithmResult.Status == OperationStatus.Failure)
+        var algorithm = settings.Algorithm?.Trim();
+        if (settings.Algorithm is not null && algorithm!.Length == 0)
         {
-            return OperationResult<ResolvedClusteringSettings>.Failure(algorithmResult.Messages);
+            return failure<ResolvedClusteringSettings>(
+                "clustering.algorithm.empty",
+                "The clustering algorithm must not be empty when supplied.");
         }
 
-        var languageResult = resolveRequiredName(
-            settings.Language,
-            _options.DefaultLanguage,
-            "clustering.language.empty",
-            "The clustering language must not be empty.");
-        if (languageResult.Status == OperationStatus.Failure)
+        var language = settings.Language?.Trim();
+        if (settings.Language is not null && language!.Length == 0)
         {
-            return OperationResult<ResolvedClusteringSettings>.Failure(languageResult.Messages);
+            return failure<ResolvedClusteringSettings>(
+                "clustering.language.empty",
+                "The clustering language must not be empty when supplied.");
         }
 
         string? template = null;
@@ -291,6 +281,38 @@ internal sealed class RunSettingsResolver
                     "clustering.template.empty",
                     "The clustering template must not be empty when supplied.");
             }
+
+            if (algorithm is not null || language is not null)
+            {
+                return failure<ResolvedClusteringSettings>(
+                    "clustering.selection.ambiguous",
+                    "A template cannot be combined with an explicit algorithm or language.");
+            }
+        }
+        else
+        {
+            var algorithmResult = resolveRequiredName(
+                algorithm,
+                _options.DefaultAlgorithm,
+                "clustering.algorithm.empty",
+                "The clustering algorithm must not be empty.");
+            if (algorithmResult.Status == OperationStatus.Failure)
+            {
+                return OperationResult<ResolvedClusteringSettings>.Failure(algorithmResult.Messages);
+            }
+
+            var languageResult = resolveRequiredName(
+                language,
+                _options.DefaultLanguage,
+                "clustering.language.empty",
+                "The clustering language must not be empty.");
+            if (languageResult.Status == OperationStatus.Failure)
+            {
+                return OperationResult<ResolvedClusteringSettings>.Failure(languageResult.Messages);
+            }
+
+            algorithm = algorithmResult.Value!;
+            language = languageResult.Value!;
         }
 
         string? parametersFile = null;
@@ -310,10 +332,13 @@ internal sealed class RunSettingsResolver
             {
                 InputPath = inputPath,
                 Endpoint = endpointResult.Value!,
-                Algorithm = algorithmResult.Value!,
-                Language = languageResult.Value!,
-                Template = template,
-                ParametersFile = parametersFile,
+                Clustering = new ClusteringSelection
+                {
+                    Algorithm = algorithm,
+                    Language = language,
+                    Template = template,
+                    ParametersFile = parametersFile
+                },
                 Timeout = timeoutResult.Value
             });
 
@@ -655,20 +680,8 @@ internal sealed class RunSettingsResolver
         public required Uri Endpoint { get; init; }
 
         /**************************************************************/
-        /// <summary>Gets the explicit or configured algorithm name.</summary>
-        public required string Algorithm { get; init; }
-
-        /**************************************************************/
-        /// <summary>Gets the explicit or configured language name.</summary>
-        public required string Language { get; init; }
-
-        /**************************************************************/
-        /// <summary>Gets the optional trimmed template name.</summary>
-        public string? Template { get; init; }
-
-        /**************************************************************/
-        /// <summary>Gets the optional normalized existing JSON parameter-file path.</summary>
-        public string? ParametersFile { get; init; }
+        /// <summary>Gets the normalized direct or template clustering selection.</summary>
+        public required ClusteringSelection Clustering { get; init; }
 
         /**************************************************************/
         /// <summary>Gets the positive explicit or configured timeout.</summary>

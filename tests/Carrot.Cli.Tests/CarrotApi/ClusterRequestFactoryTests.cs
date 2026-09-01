@@ -51,6 +51,69 @@ public sealed class ClusterRequestFactoryTests
     }
 
     /**************************************************************/
+    /// <summary>Verifies explicit template configuration omits direct fields and preserves nested parameters.</summary>
+    [Fact]
+    public void Create_ResolvedTemplateConfiguration_MapsExactWireContract()
+    {
+        #region implementation
+
+        // Arrange
+        var factory = new ClusterRequestFactory(Options.Create(new CarrotCliOptions()));
+        var nestedValue = JsonSerializer.SerializeToElement(new
+        {
+            labels = new[] { "one", "two" },
+            enabled = true,
+            threshold = 1.25D
+        });
+        var configuration = new ClusteringConfiguration
+        {
+            Template = "news",
+            Parameters = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+            {
+                ["nested"] = nestedValue,
+                ["formula"] = JsonSerializer.SerializeToElement("=SUM(A1:A2)")
+            }
+        };
+
+        // Act
+        var request = factory.Create(
+            [createDocument(0, "Template title", "Template content")],
+            configuration);
+        var json = JsonSerializer.SerializeToElement(request);
+
+        // Assert
+        Assert.Null(request.Algorithm);
+        Assert.Null(request.Language);
+        Assert.Same(configuration.Parameters, request.Parameters);
+        Assert.False(json.TryGetProperty("algorithm", out _));
+        Assert.False(json.TryGetProperty("language", out _));
+        Assert.Equal(JsonValueKind.Array, json.GetProperty("parameters").GetProperty("nested").GetProperty("labels").ValueKind);
+        Assert.True(json.GetProperty("parameters").GetProperty("nested").GetProperty("enabled").GetBoolean());
+        Assert.Equal("=SUM(A1:A2)", json.GetProperty("parameters").GetProperty("formula").GetString());
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies both request-factory entry points guard required arguments.</summary>
+    [Fact]
+    public void Create_NullArguments_ThrowArgumentNullException()
+    {
+        #region implementation
+
+        // Arrange
+        var factory = new ClusterRequestFactory(Options.Create(new CarrotCliOptions()));
+        ExtractedDocument[] documents = [createDocument(0, "Title", "Content")];
+
+        // Act and assert
+        Assert.Throws<ArgumentNullException>(() => factory.Create(null!));
+        Assert.Throws<ArgumentNullException>(() => factory.Create(null!, new ClusteringConfiguration()));
+        Assert.Throws<ArgumentNullException>(() => factory.Create(documents, null!));
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Creates one extracted-document fixture with source metadata that must stay client-side.</summary>
     /// <param name="index">The contiguous Carrot document index.</param>
     /// <param name="title">The title expected on the wire.</param>

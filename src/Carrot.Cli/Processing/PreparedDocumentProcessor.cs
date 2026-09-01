@@ -1,5 +1,6 @@
 using Carrot.Cli.CarrotApi;
 using Carrot.Cli.Common;
+using Carrot.Cli.Configuration;
 
 namespace Carrot.Cli.Processing;
 
@@ -18,6 +19,8 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
     #region implementation
 
     private readonly ClusterRequestFactory _requestFactory;
+    private readonly ClusteringConfigurationResolver _configurationResolver;
+    private readonly ClusteringConfigurationValidator _configurationValidator;
     private readonly ICarrotApiClient _apiClient;
     private readonly ClusterMembershipMapper _membershipMapper;
     private readonly IRunIdProvider _runIdProvider;
@@ -25,11 +28,15 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
     /**************************************************************/
     /// <summary>Initializes prepared-item processing with its request, HTTP, and mapping boundaries.</summary>
     /// <param name="requestFactory">The shared preview and submission request factory.</param>
+    /// <param name="configurationResolver">The selection-default and parameter-file resolver.</param>
+    /// <param name="configurationValidator">The exact Carrot list-response selection validator.</param>
     /// <param name="apiClient">The host-managed Carrot HTTP boundary.</param>
     /// <param name="membershipMapper">The recursive membership validator and mapper.</param>
     /// <param name="runIdProvider">The successful-run correlation identifier provider.</param>
     public PreparedDocumentProcessor(
         ClusterRequestFactory requestFactory,
+        ClusteringConfigurationResolver configurationResolver,
+        ClusteringConfigurationValidator configurationValidator,
         ICarrotApiClient apiClient,
         ClusterMembershipMapper membershipMapper,
         IRunIdProvider runIdProvider)
@@ -37,10 +44,14 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
         #region implementation
 
         ArgumentNullException.ThrowIfNull(requestFactory);
+        ArgumentNullException.ThrowIfNull(configurationResolver);
+        ArgumentNullException.ThrowIfNull(configurationValidator);
         ArgumentNullException.ThrowIfNull(apiClient);
         ArgumentNullException.ThrowIfNull(membershipMapper);
         ArgumentNullException.ThrowIfNull(runIdProvider);
         _requestFactory = requestFactory;
+        _configurationResolver = configurationResolver;
+        _configurationValidator = configurationValidator;
         _apiClient = apiClient;
         _membershipMapper = membershipMapper;
         _runIdProvider = runIdProvider;
@@ -65,7 +76,15 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
             return failure("processing.no-ready-documents", "No successfully prepared documents are available to process.");
         }
 
-        var clusterRequest = _requestFactory.Create(request.PreparedBatch.Documents);
+        var resolvedResult = await _configurationResolver.ResolveAsync(
+            request.Clustering,
+            cancellationToken).ConfigureAwait(false);
+        if (resolvedResult.Value is not { } resolvedConfiguration)
+        {
+            return OperationResult<ProcessedDocumentBatch>.Failure(resolvedResult.Messages);
+        }
+
+        var clusterRequest = _requestFactory.Create(request.PreparedBatch.Documents, resolvedConfiguration);
         var configurationResult = await _apiClient.GetConfigurationAsync(
             request.Endpoint,
             request.Timeout,
@@ -76,26 +95,16 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
             return OperationResult<ProcessedDocumentBatch>.Failure(configurationResult.Messages);
         }
 
-        if (clusterRequest.Algorithm is null
-            || !configuration.Algorithms.TryGetValue(clusterRequest.Algorithm, out var languages))
+        var validationResult = _configurationValidator.Validate(resolvedConfiguration, configuration);
+        if (validationResult.Status == OperationStatus.Failure)
         {
-            return failure(
-                "processing.algorithm-unavailable",
-                $"Carrot does not advertise the exact algorithm identifier '{clusterRequest.Algorithm}'.");
-        }
-
-        if (clusterRequest.Language is null
-            || !languages.Contains(clusterRequest.Language, StringComparer.Ordinal))
-        {
-            return failure(
-                "processing.language-unavailable",
-                $"Carrot does not advertise the exact language identifier '{clusterRequest.Language}' for algorithm '{clusterRequest.Algorithm}'.");
+            return OperationResult<ProcessedDocumentBatch>.Failure(validationResult.Messages);
         }
 
         var clusterResult = await _apiClient.ClusterAsync(
             request.Endpoint,
             clusterRequest,
-            template: null,
+            resolvedConfiguration.Template,
             request.Timeout,
             indent: null,
             cancellationToken).ConfigureAwait(false);

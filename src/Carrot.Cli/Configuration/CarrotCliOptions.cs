@@ -26,6 +26,10 @@ internal sealed class CarrotCliOptions
     public long MaximumTotalExtractedCharacters { get; set; } = 50_000_000L;
 
     /**************************************************************/
+    /// <summary>Gets or sets the maximum UTF-8 byte count accepted for one JSON parameter file.</summary>
+    public int MaximumParameterFileBytes { get; set; } = 1024 * 1024;
+
+    /**************************************************************/
     /// <summary>Gets or sets the maximum permitted uncompressed-to-compressed ZIP ratio.</summary>
     public double MaximumCompressionRatio { get; set; } = 100D;
 

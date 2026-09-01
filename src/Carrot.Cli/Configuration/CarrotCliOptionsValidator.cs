@@ -30,6 +30,7 @@ internal sealed class CarrotCliOptionsValidator : IValidateOptions<CarrotCliOpti
         validatePositive(options.MaximumFileSizeBytes, nameof(options.MaximumFileSizeBytes), failures);
         validatePositive(options.MaximumExpandedArchiveBytes, nameof(options.MaximumExpandedArchiveBytes), failures);
         validatePositive(options.MaximumTotalExtractedCharacters, nameof(options.MaximumTotalExtractedCharacters), failures);
+        validatePositive(options.MaximumParameterFileBytes, nameof(options.MaximumParameterFileBytes), failures);
         validatePositive(options.MaximumCompressionRatio, nameof(options.MaximumCompressionRatio), failures);
         validatePositive(options.ExtractionWorkerCount, nameof(options.ExtractionWorkerCount), failures);
         validatePositive(options.HttpTimeoutSeconds, nameof(options.HttpTimeoutSeconds), failures);

@@ -1,3 +1,5 @@
+using Carrot.Cli.Configuration;
+
 namespace Carrot.Cli.Processing;
 
 /**************************************************************/
@@ -19,6 +21,10 @@ internal sealed record ProcessPreparedItemsRequest
     /**************************************************************/
     /// <summary>Gets the retained batch whose ready documents are submitted in exact order.</summary>
     public required PreparedDocumentBatch PreparedBatch { get; init; }
+
+    /**************************************************************/
+    /// <summary>Gets the optional clustering selections; an empty instance preserves interactive defaults.</summary>
+    public ClusteringSelection Clustering { get; init; } = new();
 
     /**************************************************************/
     /// <summary>Gets the overall time budget applied independently to each Carrot API operation.</summary>

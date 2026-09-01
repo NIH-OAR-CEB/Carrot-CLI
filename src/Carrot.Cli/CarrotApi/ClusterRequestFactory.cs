@@ -34,7 +34,7 @@ internal sealed class ClusterRequestFactory
     }
 
     /**************************************************************/
-    /// <summary>Creates one request containing every supplied document in prepared order.</summary>
+    /// <summary>Creates one default request containing every supplied document in prepared order.</summary>
     /// <param name="documents">The successfully extracted documents retained by the prepared batch.</param>
     /// <returns>The complete in-memory request ready for JSON serialization or future submission.</returns>
     /// <remarks>
@@ -46,11 +46,39 @@ internal sealed class ClusterRequestFactory
     {
         #region implementation
 
+        return Create(
+            documents,
+            new ClusteringConfiguration
+            {
+                Algorithm = _options.DefaultAlgorithm,
+                Language = _options.DefaultLanguage
+            });
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Creates one request from explicit resolved clustering selections and prepared documents.</summary>
+    /// <param name="documents">The successfully extracted documents retained by the prepared batch.</param>
+    /// <param name="configuration">The resolved direct or template clustering configuration.</param>
+    /// <returns>The complete in-memory request ready for JSON serialization or submission.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="documents"/> or <paramref name="configuration"/> is null.
+    /// </exception>
+    /// <seealso cref="ClusteringConfiguration"/>
+    internal ClusterRequest Create(
+        IReadOnlyList<ExtractedDocument> documents,
+        ClusteringConfiguration configuration)
+    {
+        #region implementation
+
         ArgumentNullException.ThrowIfNull(documents);
+        ArgumentNullException.ThrowIfNull(configuration);
         return new ClusterRequest
         {
-            Language = _options.DefaultLanguage,
-            Algorithm = _options.DefaultAlgorithm,
+            Language = configuration.Language,
+            Algorithm = configuration.Algorithm,
+            Parameters = configuration.Parameters,
             Documents = documents
                 .Select(document => new ClusterDocument
                 {

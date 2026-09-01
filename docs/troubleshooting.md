@@ -7,6 +7,8 @@
 - Interactive endpoint rejected: use an absolute HTTP or HTTPS URL ending exactly in `/service`, without credentials, query text, or a fragment.
 - Scanned PDF: OCR is not included; supply a PDF with a searchable text layer.
 - HTTP failure: verify the Carrot 4.8.6 service is reachable and that the endpoint ends at `/service`; use `server-info` to inspect `/list` before clustering.
+- Clustering selection rejected: copy algorithm, language, or template identifiers exactly from `/list`. Do not combine `--template` with `--algorithm` or `--language`; template selection delegates both fields to the server.
+- Parameters file rejected: use an existing `.json` file of at most 1,048,576 bytes containing valid UTF-8 JSON with one object root and no duplicate property names. Parameter validation completes before `/cluster`.
 - Excel output path rejected: press Enter to accept the complete timestamped suggestion, or edit it to a filename ending in `.xlsx` under an existing directory. Matching surrounding quotes and relative paths are accepted.
 - Excel export failed: close an existing workbook if it is locked, verify destination write permission, and retry or select another path. The retained processed result remains available and a failed save leaves no partial destination.
 - JSON artifact persistence failed: verify the destination parent exists and is writable, then approve overwrite only when replacement is intended. Atomic persistence preserves an existing destination and removes its temporary sibling after failure or cancellation. Named commands do not invoke this implemented boundary until their later orchestration milestones.

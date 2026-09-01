@@ -7,7 +7,8 @@
 - **No supported documents:** direct files must use a supported extension; folders and ZIPs must contain at least one supported document.
 - **Partial preparation:** review failed rows and batch warnings. Ready rows remain eligible for Process Prepared Items.
 - **Endpoint rejected:** use an absolute HTTP or HTTPS URL ending exactly in `/service`, without credentials, a query string, or a fragment.
-- **Algorithm or language unavailable:** confirm `/list` advertises exact `Lingo` and `English` identifiers together.
+- **Algorithm, language, or template unavailable:** copy identifiers exactly from `/list`; matching is case-sensitive. A direct algorithm/language pair must be advertised together. Do not combine a template with either direct-selection option.
+- **Parameters file rejected:** use an existing `.json` file no larger than 1,048,576 bytes containing valid UTF-8 JSON with one object root and no duplicate property names. Invalid, unreadable, oversized, or non-object files fail before `/cluster`.
 - **HTTP processing failure:** confirm the service is reachable. HTTP 400, redirects, malformed JSON, and caller cancellation are not retried; transport errors, 408, 429, and server failures receive at most two retries within the overall operation timeout.
 - **Every result is unassigned:** an empty cluster array is valid. Review the document set and content concision; Carrot2 generally works best with roughly 100–1,000 concise documents.
 - **Response index failure:** Carrot returned a document index outside the submitted array, so the complete response was rejected and no partial mapping was displayed.

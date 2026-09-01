@@ -50,12 +50,7 @@ public sealed class PreparedDocumentProcessorTests
                 ]
             })
         };
-        var requestFactory = new ClusterRequestFactory(Options.Create(new CarrotCliOptions()));
-        var processor = new PreparedDocumentProcessor(
-            requestFactory,
-            apiClient,
-            new ClusterMembershipMapper(),
-            new StubRunIdProvider(ExpectedRunId));
+        var processor = createProcessor(apiClient);
         var preparedBatch = createBatchWithFailedSourceGaps();
 
         // Act
@@ -74,6 +69,10 @@ public sealed class PreparedDocumentProcessorTests
         Assert.NotNull(apiClient.SubmittedRequest);
         Assert.Same(apiClient.SubmittedRequest, result.Value!.Request);
         Assert.Equal(ExpectedRunId, result.Value.RunId);
+        Assert.Equal("Lingo", result.Value.Request.Algorithm);
+        Assert.Equal("English", result.Value.Request.Language);
+        Assert.Null(apiClient.SubmittedTemplate);
+        Assert.Null(result.Value.Request.Parameters);
         Assert.Equal(["ready-one", "ready-three"], result.Value.Request.Documents.Select(document => document.Title));
         Assert.Collection(
             result.Value.Rows,
@@ -136,8 +135,8 @@ public sealed class PreparedDocumentProcessorTests
     /// <param name="algorithmsJson">The algorithm map represented as JSON.</param>
     /// <param name="expectedCode">The expected validation failure code.</param>
     [Theory]
-    [InlineData("{ \"lingo\": [ \"English\" ] }", "processing.algorithm-unavailable")]
-    [InlineData("{ \"Lingo\": [ \"english\" ] }", "processing.language-unavailable")]
+    [InlineData("{ \"lingo\": [ \"English\" ] }", "clustering.algorithm.unavailable")]
+    [InlineData("{ \"Lingo\": [ \"english\" ] }", "clustering.language.unavailable")]
     public async Task ProcessAsync_ConfigurationIdentifierMismatch_DoesNotSubmitCluster(
         string algorithmsJson,
         string expectedCode)
@@ -167,6 +166,118 @@ public sealed class PreparedDocumentProcessorTests
         Assert.Equal(expectedCode, Assert.Single(result.Messages).Code);
         Assert.Equal(["list"], apiClient.Calls);
         Assert.Null(apiClient.SubmittedRequest);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies a named template and nested parameter object reach the exact cluster call.</summary>
+    [Fact]
+    public async Task ProcessAsync_TemplateAndParameters_SubmitsResolvedConfiguration()
+    {
+        #region implementation
+
+        // Arrange
+        var root = Path.Combine(Path.GetTempPath(), "CarrotCliTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var parametersFile = Path.Combine(root, "parameters.json");
+        File.WriteAllText(parametersFile, "{ \"threshold\": 2.5, \"nested\": { \"enabled\": true } }");
+        try
+        {
+            var apiClient = new StubCarrotApiClient
+            {
+                ConfigurationResult = OperationResult<ListResponse>.Success(new ListResponse
+                {
+                    Algorithms = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
+                    Templates = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+                    {
+                        ["news"] = JsonSerializer.SerializeToElement(new { algorithm = "Lingo" })
+                    }
+                }),
+                ClusterResult = OperationResult<ClusterResponse>.Success(new ClusterResponse()),
+                ExpectedTemplate = "news"
+            };
+            var processor = createProcessor(apiClient);
+            var request = createRequest(createBatchWithFailedSourceGaps()) with
+            {
+                Clustering = new ClusteringSelection
+                {
+                    Template = "news",
+                    ParametersFile = parametersFile
+                }
+            };
+
+            // Act
+            var result = await processor.ProcessAsync(request, TestContext.Current.CancellationToken);
+
+            // Assert
+            Assert.Equal(OperationStatus.Success, result.Status);
+            Assert.Equal(["list", "cluster"], apiClient.Calls);
+            Assert.Equal("news", apiClient.SubmittedTemplate);
+            Assert.Null(apiClient.SubmittedRequest!.Algorithm);
+            Assert.Null(apiClient.SubmittedRequest.Language);
+            Assert.Equal(2.5D, apiClient.SubmittedRequest.Parameters!["threshold"].GetDouble());
+            Assert.True(apiClient.SubmittedRequest.Parameters["nested"].GetProperty("enabled").GetBoolean());
+            Assert.Same(apiClient.SubmittedRequest, result.Value!.Request);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies an invalid parameter file fails before either Carrot endpoint is called.</summary>
+    [Fact]
+    public async Task ProcessAsync_InvalidParameterFile_ReturnsFailureBeforeApiCall()
+    {
+        #region implementation
+
+        // Arrange
+        var root = Path.Combine(Path.GetTempPath(), "CarrotCliTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var parametersFile = Path.Combine(root, "parameters.json");
+        File.WriteAllText(parametersFile, "[]");
+        try
+        {
+            var apiClient = new StubCarrotApiClient();
+            var processor = createProcessor(apiClient);
+            var request = createRequest(createBatchWithFailedSourceGaps()) with
+            {
+                Clustering = new ClusteringSelection { ParametersFile = parametersFile }
+            };
+
+            // Act
+            var result = await processor.ProcessAsync(request, TestContext.Current.CancellationToken);
+
+            // Assert
+            Assert.Equal(OperationStatus.Failure, result.Status);
+            Assert.Equal("clustering.parameters.root", Assert.Single(result.Messages).Code);
+            Assert.Empty(apiClient.Calls);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies the public processing method rejects a null request.</summary>
+    [Fact]
+    public async Task ProcessAsync_NullRequest_ThrowsArgumentNullException()
+    {
+        #region implementation
+
+        // Arrange
+        var processor = createProcessor(new StubCarrotApiClient());
+
+        // Act and assert
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => processor.ProcessAsync(null!, TestContext.Current.CancellationToken));
 
         #endregion
     }
@@ -234,8 +345,11 @@ public sealed class PreparedDocumentProcessorTests
     {
         #region implementation
 
+        var options = Options.Create(new CarrotCliOptions());
         return new PreparedDocumentProcessor(
-            new ClusterRequestFactory(Options.Create(new CarrotCliOptions())),
+            new ClusterRequestFactory(options),
+            new ClusteringConfigurationResolver(options),
+            new ClusteringConfigurationValidator(),
             apiClient,
             new ClusterMembershipMapper(),
             new StubRunIdProvider(ExpectedRunId));
@@ -411,6 +525,14 @@ public sealed class PreparedDocumentProcessorTests
         internal ClusterRequest? SubmittedRequest { get; private set; }
 
         /**************************************************************/
+        /// <summary>Gets or sets the template expected on the cluster call.</summary>
+        internal string? ExpectedTemplate { get; set; }
+
+        /**************************************************************/
+        /// <summary>Gets the template captured from the cluster call.</summary>
+        internal string? SubmittedTemplate { get; private set; }
+
+        /**************************************************************/
         /// <summary>Returns the configured list response and records ordering.</summary>
         public Task<OperationResult<ListResponse>> GetConfigurationAsync(
             Uri serviceEndpoint,
@@ -441,7 +563,8 @@ public sealed class PreparedDocumentProcessorTests
 
             Calls.Add("cluster");
             SubmittedRequest = request;
-            Assert.Null(template);
+            SubmittedTemplate = template;
+            Assert.Equal(ExpectedTemplate, template);
             Assert.Null(indent);
             return Task.FromResult(ClusterResult);
 

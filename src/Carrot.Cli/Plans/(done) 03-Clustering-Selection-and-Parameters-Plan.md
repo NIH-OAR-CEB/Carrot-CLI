@@ -1,6 +1,6 @@
 # Clustering Selection and Parameters
 
-Status: Pending
+Status: Complete
 
 Category: Clustering configuration
 
@@ -64,3 +64,12 @@ Introduce a focused resolver for clustering selections, validate those selection
 
 - Interactive clustering-selection prompts and named preview/process execution.
 
+## 11. Completion Evidence
+
+- Added immutable `ClusteringSelection` and `ClusteringConfiguration` models plus a reusable resolver that applies defaults, rejects ambiguous template/direct combinations, and parses detached JSON parameter values.
+- Parameter files require an existing `.json` path, strict valid UTF-8, a unique-property object root, and no more than the configured 1,048,576-byte default; missing, malformed, non-object, duplicate, oversized, locked, and canceled reads have explicit behavior.
+- Added an exact ordinal `/list` validator for algorithm/language compatibility and template names, independent of caller dictionary comparers.
+- `ClusterRequestFactory` consumes explicit resolved configuration, and `PreparedDocumentProcessor` resolves parameters before `/list`, validates selections before `/cluster`, passes templates through the query selection, and preserves one global request.
+- Named process/preview request settings now carry one normalized clustering selection. Interactive processing still emits `Lingo`/`English` with no template or parameters.
+- README, CLI reference, troubleshooting, and embedded clustering, command, privacy, and troubleshooting help document precedence, the size and JSON contract, and deferred command/UI scope.
+- Verification completed with 205 passing tests, 6 intentionally deferred tests, and 1 opt-in local Carrot smoke test not selected; the Release build completed with 0 warnings and 0 errors, and formatting and whitespace checks passed.

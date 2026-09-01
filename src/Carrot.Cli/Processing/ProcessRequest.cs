@@ -1,3 +1,5 @@
+using Carrot.Cli.Configuration;
+
 namespace Carrot.Cli.Processing;
 
 /**************************************************************/
@@ -26,20 +28,8 @@ internal sealed record ProcessRequest
     public bool Recursive { get; init; }
 
     /**************************************************************/
-    /// <summary>Gets the resolved clustering algorithm identifier.</summary>
-    public string? Algorithm { get; init; }
-
-    /**************************************************************/
-    /// <summary>Gets the resolved clustering language identifier.</summary>
-    public string? Language { get; init; }
-
-    /**************************************************************/
-    /// <summary>Gets the optional server-side template identifier.</summary>
-    public string? Template { get; init; }
-
-    /**************************************************************/
-    /// <summary>Gets the optional algorithm-parameter JSON file path.</summary>
-    public string? ParametersFile { get; init; }
+    /// <summary>Gets the normalized clustering selection resolved later into request values.</summary>
+    public required ClusteringSelection Clustering { get; init; }
 
     /**************************************************************/
     /// <summary>Gets the resolved HTTP timeout.</summary>

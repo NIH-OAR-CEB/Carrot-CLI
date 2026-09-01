@@ -50,7 +50,6 @@ public sealed class RunSettingsResolverTests
                 Recursive = true,
                 Algorithm = "  STC  ",
                 Language = "  English  ",
-                Template = "  news  ",
                 ParametersFile = $"\"{parametersFile}\"",
                 TimeoutSeconds = 45,
                 Overwrite = true,
@@ -70,15 +69,100 @@ public sealed class RunSettingsResolverTests
             Assert.Equal("https://explicit.example/service", request.Endpoint.AbsoluteUri.TrimEnd('/'));
             Assert.Equal(outputPath, request.OutputPath);
             Assert.True(request.Recursive);
-            Assert.Equal("STC", request.Algorithm);
-            Assert.Equal("English", request.Language);
-            Assert.Equal("news", request.Template);
-            Assert.Equal(parametersFile, request.ParametersFile);
+            Assert.Equal("STC", request.Clustering.Algorithm);
+            Assert.Equal("English", request.Clustering.Language);
+            Assert.Null(request.Clustering.Template);
+            Assert.Equal(parametersFile, request.Clustering.ParametersFile);
             Assert.Equal(TimeSpan.FromSeconds(45), request.Timeout);
             Assert.True(request.Overwrite);
             Assert.False(request.WriteJsonArtifacts);
             Assert.True(request.Quiet);
             Assert.Equal(logFile, request.LogFile);
+        }
+        finally
+        {
+            deleteTemporaryDirectory(root);
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies a template selection suppresses configured direct-selection defaults.</summary>
+    [Fact]
+    public void ResolvePreview_TemplateSelection_OmitsAlgorithmAndLanguage()
+    {
+        #region implementation
+
+        // Arrange
+        var root = createTemporaryDirectory();
+        try
+        {
+            var input = Directory.CreateDirectory(Path.Combine(root, "input")).FullName;
+            using var provider = createProvider(
+                createConfiguration(
+                    new Dictionary<string, string?>
+                    {
+                        ["CARROTCLI_ENDPOINT"] = "http://localhost:8080/service"
+                    }));
+            var resolver = provider.GetRequiredService<RunSettingsResolver>();
+
+            // Act
+            var result = resolver.ResolvePreview(
+                new PreviewSettings { InputPath = input, Template = "  news  " });
+
+            // Assert
+            Assert.Equal(OperationStatus.Success, result.Status);
+            Assert.Null(result.Value!.Clustering.Algorithm);
+            Assert.Null(result.Value.Clustering.Language);
+            Assert.Equal("news", result.Value.Clustering.Template);
+        }
+        finally
+        {
+            deleteTemporaryDirectory(root);
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Verifies template selection rejects either explicit direct-selection option.</summary>
+    /// <param name="algorithm">The optional explicit algorithm.</param>
+    /// <param name="language">The optional explicit language.</param>
+    [Theory]
+    [InlineData("Lingo", null)]
+    [InlineData(null, "English")]
+    public void ResolveProcess_TemplateWithDirectSelection_ReturnsAmbiguousFailure(
+        string? algorithm,
+        string? language)
+    {
+        #region implementation
+
+        // Arrange
+        var root = createTemporaryDirectory();
+        try
+        {
+            var input = Directory.CreateDirectory(Path.Combine(root, "input")).FullName;
+            using var provider = createProvider(
+                createConfiguration(
+                    new Dictionary<string, string?>
+                    {
+                        ["CARROTCLI_ENDPOINT"] = "http://localhost:8080/service"
+                    }));
+            var resolver = provider.GetRequiredService<RunSettingsResolver>();
+
+            // Act
+            var result = resolver.ResolveProcess(new ProcessSettings
+            {
+                InputPath = input,
+                Template = "news",
+                Algorithm = algorithm,
+                Language = language
+            });
+
+            // Assert
+            Assert.Equal(OperationStatus.Failure, result.Status);
+            Assert.Equal("clustering.selection.ambiguous", Assert.Single(result.Messages).Code);
         }
         finally
         {
@@ -132,10 +216,10 @@ public sealed class RunSettingsResolverTests
             Assert.Equal("http://localhost:8080/service", request.Endpoint.AbsoluteUri.TrimEnd('/'));
             Assert.Equal(outputPath, request.OutputPath);
             Assert.True(request.Recursive);
-            Assert.Equal("CustomAlgorithm", request.Algorithm);
-            Assert.Equal("CustomLanguage", request.Language);
-            Assert.Null(request.Template);
-            Assert.Null(request.ParametersFile);
+            Assert.Equal("CustomAlgorithm", request.Clustering.Algorithm);
+            Assert.Equal("CustomLanguage", request.Clustering.Language);
+            Assert.Null(request.Clustering.Template);
+            Assert.Null(request.Clustering.ParametersFile);
             Assert.Equal(TimeSpan.FromSeconds(75), request.Timeout);
             Assert.True(request.Overwrite);
         }

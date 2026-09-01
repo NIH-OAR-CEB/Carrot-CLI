@@ -18,8 +18,9 @@ namespace Carrot.Cli.Composition;
 /// Defines the composition-root registration boundary for all Carrot CLI features.
 /// </summary>
 /// <remarks>
-/// Interactive preparation, in-memory Carrot processing, and explicit processed-result Excel
-/// export registrations are active. Named operational commands and JSON artifacts remain deferred.
+/// Interactive preparation, reusable clustering configuration, in-memory Carrot processing,
+/// atomic JSON persistence, and explicit processed-result Excel export registrations are active.
+/// Named operational commands remain deferred.
 /// </remarks>
 /// <seealso cref="CarrotCliOptions"/>
 internal static class ServiceRegistration
@@ -63,6 +64,8 @@ internal static class ServiceRegistration
         services.AddSingleton<DocumentExtractionCoordinator>();
         services.AddSingleton<IDocumentPreparationWorkflow, DocumentPreparationWorkflow>();
         services.AddSingleton<ClusterRequestFactory>();
+        services.AddSingleton<ClusteringConfigurationResolver>();
+        services.AddSingleton<ClusteringConfigurationValidator>();
         services.AddSingleton<EndpointResolver>();
         services.AddSingleton<RunSettingsResolver>();
         services.AddSingleton<ClusterMembershipMapper>();
