@@ -24,15 +24,17 @@ Arguments: preview --input "C:\Data\Nightly.zip" --recursive --endpoint "http://
 Start in: C:\Tools\Carrot CLI
 ```
 
-## Scenario: cluster a nightly folder and import results into Excel
+## Scenario: process a watched folder nightly with unique retained artifacts
 
-Use this for unattended end-to-end processing. With `--output "C:\Results"`, process writes three atomically replaced files in that existing directory: `<input-name>-carrot-<run-id>.xlsx` (one `Results` worksheet), plus same-prefix `.request.json` and `.response.json` sidecars. The workbook contains one row per category membership; unassigned documents retain one blank-category row.
+Create a Task Scheduler **Daily** trigger at the required nightly time and point it at a folder where another process deposits ready documents. Supply an existing output **directory**, not an explicit workbook filename. Each execution receives a new run ID, so it writes a unique set such as `Watched-carrot-<run-id>.xlsx`, `Watched-carrot-<run-id>.request.json`, and `Watched-carrot-<run-id>.response.json` under `C:\Results\Nightly`; no prior night's artifacts are overwritten. The workbook is an Excel `.xlsx` file with one `Results` worksheet, and both sidecars are indented UTF-8 JSON.
 
 ```text
 Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
-Arguments: process --input "C:\Data\Documents" --recursive --endpoint "http://localhost:8080/service" --output "C:\Results" --log-file "C:\Logs\carrot-nightly.log" --quiet
+Arguments: process --input "C:\Data\Watched" --recursive --endpoint "http://localhost:8080/service" --output "C:\Results\Nightly" --log-file "C:\Logs\carrot-nightly.log" --quiet
 Start in: C:\Tools\Carrot CLI
 ```
+
+Ensure the watched-folder producer finishes writing files before the scheduled task begins. The CLI reads supported files present at run time; it does not continuously monitor the directory.
 
 ## Scenario: write only an Excel workbook
 
