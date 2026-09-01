@@ -4,7 +4,9 @@ Named `preview` discovers and extracts supported input, validates the selected a
 
 In the current UI milestone:
 
-- **Interactive Execute** displays `Pending Implementation` without reading or writing files; use the implemented noninteractive `carrot-cli preview` command for unattended request generation.
+- **Interactive Preview Request** collects one file, folder, or ZIP input; optional folder recursion; a nonpersisted endpoint; and direct algorithm/language identifiers. It prepares the input, validates the selection through `/list`, displays the exact request through terminal-sized pages, and never calls `/cluster`.
+- **Save Request JSON** is available from the JSON pager and writes only after an explicit path and overwrite decision. A declined or failed save leaves the request preview available.
+- **Save Workbench JSON** writes only the root document array, not the `/cluster` request wrapper. Upload that `.workbench.json` file through Workbench's **Local file** source, then choose `title` and `content` as text fields.
 - **Help** displays this topic.
 - **Back to Main Menu** leaves the workflow without side effects.
 

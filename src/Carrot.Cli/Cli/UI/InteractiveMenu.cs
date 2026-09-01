@@ -8,9 +8,7 @@ namespace Carrot.Cli.Cli.UI;
 /// Coordinates the selectable main, workflow, and help menus used by human operators.
 /// </summary>
 /// <remarks>
-/// Process Documents delegates to its implemented preparation and review coordinator. Preview
-/// Request retains a deferred Execute action, while Server Information delegates endpoint and
-/// server-configuration work to its focused interactive flow.
+/// Process Documents, Preview Request, and Server Information delegate to focused interactive flows.
 /// </remarks>
 /// <seealso cref="HelpRenderer"/>
 /// <seealso cref="AboutRenderer"/>
@@ -25,6 +23,7 @@ internal sealed class InteractiveMenu
     private readonly HelpRenderer _helpRenderer;
     private readonly AboutRenderer _aboutRenderer;
     private readonly ProcessDocumentsMenu _processDocumentsMenu;
+    private readonly InteractivePreviewFlow _interactivePreviewFlow;
     private readonly ServerInformationFlow _serverInformationFlow;
 
     /**************************************************************/
@@ -82,6 +81,7 @@ internal sealed class InteractiveMenu
     /// <param name="helpRenderer">The curated Markdown help renderer.</param>
     /// <param name="aboutRenderer">The application-information renderer.</param>
     /// <param name="processDocumentsMenu">The implemented document preparation and review menu.</param>
+    /// <param name="interactivePreviewFlow">The independent interactive request-preview flow.</param>
     /// <param name="serverInformationFlow">The endpoint-backed Server Information flow.</param>
     public InteractiveMenu(
         IAnsiConsole console,
@@ -89,6 +89,7 @@ internal sealed class InteractiveMenu
         HelpRenderer helpRenderer,
         AboutRenderer aboutRenderer,
         ProcessDocumentsMenu processDocumentsMenu,
+        InteractivePreviewFlow interactivePreviewFlow,
         ServerInformationFlow serverInformationFlow)
     {
         #region implementation
@@ -98,6 +99,7 @@ internal sealed class InteractiveMenu
         ArgumentNullException.ThrowIfNull(helpRenderer);
         ArgumentNullException.ThrowIfNull(aboutRenderer);
         ArgumentNullException.ThrowIfNull(processDocumentsMenu);
+        ArgumentNullException.ThrowIfNull(interactivePreviewFlow);
         ArgumentNullException.ThrowIfNull(serverInformationFlow);
 
         _console = console;
@@ -105,6 +107,7 @@ internal sealed class InteractiveMenu
         _helpRenderer = helpRenderer;
         _aboutRenderer = aboutRenderer;
         _processDocumentsMenu = processDocumentsMenu;
+        _interactivePreviewFlow = interactivePreviewFlow;
         _serverInformationFlow = serverInformationFlow;
 
         #endregion
@@ -143,7 +146,7 @@ internal sealed class InteractiveMenu
                             .ConfigureAwait(false);
                         break;
                     case MainMenuChoice.Preview:
-                        await runWorkflowMenuAsync("Preview Request", "preview", cancellationToken)
+                        await _interactivePreviewFlow.RunAsync(cancellationToken)
                             .ConfigureAwait(false);
                         break;
                     case MainMenuChoice.ServerInfo:

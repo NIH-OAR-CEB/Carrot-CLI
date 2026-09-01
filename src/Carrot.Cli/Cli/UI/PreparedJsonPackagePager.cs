@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Carrot.Cli.CarrotApi;
+using Carrot.Cli.CarrotApi.Contracts;
 using Carrot.Cli.Processing;
 using Spectre.Console;
 
@@ -48,6 +49,14 @@ internal sealed class PreparedJsonPackagePager
         Previous,
 
         /**************************************************************/
+        /// <summary>Runs the caller-supplied explicit request-save action.</summary>
+        Save,
+
+        /**************************************************************/
+        /// <summary>Runs the caller-supplied explicit Workbench dataset-save action.</summary>
+        SaveWorkbench,
+
+        /**************************************************************/
         /// <summary>Returns to retained prepared-batch actions.</summary>
         Back
     }
@@ -83,6 +92,29 @@ internal sealed class PreparedJsonPackagePager
 
         ArgumentNullException.ThrowIfNull(batch);
         var request = _requestFactory.Create(batch.Documents);
+        await ShowAsync(request, batch.Documents.Count, saveAction: null, saveWorkbenchAction: null, cancellationToken).ConfigureAwait(false);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Displays an already validated request and optionally exposes an explicit save action.</summary>
+    /// <param name="request">The exact request to display without further transformation.</param>
+    /// <param name="documentCount">The number of ready documents represented by the request.</param>
+    /// <param name="saveAction">The optional explicit persistence action, or null for read-only previews.</param>
+    /// <param name="saveWorkbenchAction">The optional explicit Workbench dataset persistence action.</param>
+    /// <param name="cancellationToken">The token signaling console cancellation.</param>
+    /// <returns>A task representing JSON-page navigation.</returns>
+    internal async Task ShowAsync(
+        ClusterRequest request,
+        int documentCount,
+        Func<CancellationToken, Task>? saveAction,
+        Func<CancellationToken, Task>? saveWorkbenchAction,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(request);
         var json = JsonSerializer.Serialize(request, SerializerOptions);
         var pageLineCount = Math.Clamp(
             _console.Profile.Height - ReservedTerminalRows,
@@ -98,7 +130,7 @@ internal sealed class PreparedJsonPackagePager
 
         while (true)
         {
-            renderPage(json, visualLines, batch.Documents.Count, pageIndex, pageCount, pageLineCount);
+            renderPage(json, visualLines, documentCount, pageIndex, pageCount, pageLineCount);
             var choices = new List<PageChoice>();
             if (pageIndex + 1 < pageCount)
             {
@@ -110,6 +142,16 @@ internal sealed class PreparedJsonPackagePager
                 choices.Add(PageChoice.Previous);
             }
 
+            if (saveAction is not null)
+            {
+                choices.Add(PageChoice.Save);
+            }
+
+            if (saveWorkbenchAction is not null)
+            {
+                choices.Add(PageChoice.SaveWorkbench);
+            }
+
             choices.Add(PageChoice.Back);
             var selected = await new SelectionPrompt<PageChoice>()
                 .Title($"[bold orange1]JSON Request Package[/] — Page {pageIndex + 1} of {pageCount}")
@@ -118,6 +160,8 @@ internal sealed class PreparedJsonPackagePager
                 {
                     PageChoice.Next => "Next Page",
                     PageChoice.Previous => "Previous Page",
+                    PageChoice.Save => "Save Request JSON",
+                    PageChoice.SaveWorkbench => "Save Workbench JSON",
                     PageChoice.Back => "Back to Batch Actions",
                     _ => choice.ToString()
                 })
@@ -133,6 +177,12 @@ internal sealed class PreparedJsonPackagePager
                     break;
                 case PageChoice.Previous:
                     pageIndex--;
+                    break;
+                case PageChoice.Save:
+                    await saveAction!(cancellationToken).ConfigureAwait(false);
+                    break;
+                case PageChoice.SaveWorkbench:
+                    await saveWorkbenchAction!(cancellationToken).ConfigureAwait(false);
                     break;
                 case PageChoice.Back:
                     return;
@@ -251,7 +301,7 @@ internal sealed class PreparedJsonPackagePager
         _console.MarkupLine(
             $"[grey]{Markup.Escape(ContinuationPrefix)} marks a visually wrapped continuation; the JSON value is unchanged.[/]");
         _console.MarkupLine("[grey]Press Escape to return to Batch Actions.[/]");
-        _console.MarkupLine("[yellow]Preview only:[/] no server request was sent and no file was written.");
+        _console.MarkupLine("[yellow]Preview only:[/] no server request was sent and no cluster request was sent.");
 
         #endregion
     }

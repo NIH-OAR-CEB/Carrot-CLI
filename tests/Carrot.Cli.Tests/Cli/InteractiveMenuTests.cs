@@ -14,7 +14,7 @@ namespace Carrot.Cli.Tests.Cli;
 
 /**************************************************************/
 /// <summary>
-/// Verifies main-menu navigation between implemented processing, Server Information, and deferred workflow routes.
+/// Verifies main-menu navigation between implemented processing, preview, and Server Information flows.
 /// </summary>
 public sealed class InteractiveMenuTests
 {
@@ -44,45 +44,6 @@ public sealed class InteractiveMenuTests
         var menuIndex = console.Output.IndexOf("Select an option", StringComparison.Ordinal);
         Assert.True(preambleIndex >= 0, "The application preamble was not rendered.");
         Assert.True(menuIndex > preambleIndex, "The application preamble must precede the main menu.");
-
-        #endregion
-    }
-
-    /**************************************************************/
-    /// <summary>
-    /// Verifies the deferred Preview Request workflow supports Execute, Help, and Back and reports its pending status.
-    /// </summary>
-    /// <param name="mainMenuOffset">The number of down-arrow inputs needed to select the workflow.</param>
-    /// <param name="workflowTitle">The expected workflow title.</param>
-    [Theory]
-    [InlineData(1, "Preview Request")]
-    public async Task RunAsync_WorkflowExecute_WritesPendingAndReturnsToMain(
-        int mainMenuOffset,
-        string workflowTitle)
-    {
-        #region implementation
-
-        // Arrange
-        using var console = createInteractiveConsole();
-        pushDownKeys(console, mainMenuOffset);
-        console.Input.PushKey(ConsoleKey.Enter);
-        console.Input.PushKey(ConsoleKey.Enter);
-        pushDownKeys(console, 2);
-        console.Input.PushKey(ConsoleKey.Enter);
-        pushDownKeys(console, 5);
-        console.Input.PushKey(ConsoleKey.Enter);
-        var menu = createMenu(console);
-
-        // Act
-        var exitCode = await menu.RunAsync(CancellationToken.None);
-
-        // Assert
-        Assert.Equal(ExitCodes.Success, exitCode);
-        Assert.Contains(workflowTitle, console.Output, StringComparison.Ordinal);
-        Assert.Contains("Execute", console.Output, StringComparison.Ordinal);
-        Assert.Contains("Help", console.Output, StringComparison.Ordinal);
-        Assert.Contains("Back to Main Menu", console.Output, StringComparison.Ordinal);
-        Assert.Contains("Pending Implementation", console.Output, StringComparison.Ordinal);
 
         #endregion
     }
@@ -320,12 +281,26 @@ public sealed class InteractiveMenuTests
             reporter,
             new ServerInformationPager(console, reporter),
             options);
+        var interactivePreviewFlow = new InteractivePreviewFlow(
+            console,
+            pathNormalizer,
+            resolver,
+            new StubDocumentPreparationWorkflow(),
+            new EndpointResolver(),
+            new ClusteringConfigurationResolver(options),
+            new ClusteringConfigurationValidator(),
+            new StubServerInformationClient(),
+            new ClusterRequestFactory(options),
+            new PreparedJsonPackagePager(console, new ClusterRequestFactory(options)),
+            new JsonArtifactWriter(new AtomicFileWriter()),
+            options);
         return new InteractiveMenu(
             console,
             preambleRenderer,
             helpRenderer,
             aboutRenderer,
             processDocumentsMenu,
+            interactivePreviewFlow,
             serverInformationFlow);
 
         #endregion

@@ -14,7 +14,9 @@ carrot-cli about
 carrot-cli --version
 ```
 
-No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. **Process Documents** opens an editable input list; **Preview Request** retains its deferred Execute action, while **Server Information** prompts for an endpoint, calls `/list`, and displays the advertised configuration without persisting the endpoint. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory. Long help topics are divided into terminal-sized pages with Next Page, Previous Page, Close Help, and Escape navigation; redirected command output remains complete and unpaged.
+No-argument execution displays a welcome and getting-started preamble before opening the interactive main menu. **Process Documents** opens an editable input list; **Preview Request** independently prepares one input, validates its direct selection through `/list`, pages the exact local request, and offers an explicit JSON save without calling `/cluster`; **Server Information** prompts for an endpoint, calls `/list`, and displays the advertised configuration without persisting the endpoint. The Help menu and `carrot-cli help [topic]` render embedded Markdown, so help remains available regardless of the working directory. Long help topics are divided into terminal-sized pages with Next Page, Previous Page, Close Help, and Escape navigation; redirected command output remains complete and unpaged.
+
+From Interactive Preview Request, **Save Workbench JSON** creates a `.workbench.json` file containing only the document-record array. Upload it to Workbench's **Local file** source and select `title` and `content` as text fields; do not upload the full `.request.json` API payload.
 
 Within **Process Documents**, select **Add Path** once for each input. Paths may be unquoted or surrounded by matching single or double quotes, for example:
 
