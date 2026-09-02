@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <UserSecretsId>ed2823b8-f9dd-4124-a6ac-724b2a1416df</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ClosedXML" />
