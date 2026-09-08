@@ -74,9 +74,11 @@ public sealed class InteractiveISearchFlowTests
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushTextWithEnter("vaccine research");
         console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
@@ -90,6 +92,121 @@ public sealed class InteractiveISearchFlowTests
         Assert.Equal(100, client.LastSearch.Rows);
         Assert.Contains("returned 1 of 1", console.Output, StringComparison.Ordinal);
         Assert.Contains("A result", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures field discovery renders sorted metadata and retains the dataset for querying.</summary>
+    [Fact]
+    public async Task RunAsync_ViewFields_RendersSortedMetadataAndRetainsDataset()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        var client = createHealthyClient();
+        client.Fields = OperationResult<IReadOnlyList<SearchField>>.Success(
+        [
+            new SearchField
+            {
+                Name = "zeta",
+                DisplayName = "Zeta",
+                FieldType = "string",
+                DefaultQueryField = false,
+                DefaultResultField = true,
+                MultiValued = null,
+                SearchOnly = false
+            },
+            new SearchField
+            {
+                Name = "alpha",
+                DisplayName = "Alpha",
+                FieldType = "score",
+                DefaultQueryField = true,
+                DefaultResultField = false,
+                MultiValued = true,
+                SearchOnly = true
+            }
+        ]);
+
+        // Select the dataset, view fields, return to the dataset menu, submit a query, then leave both menus.
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushTextWithEnter("schema check");
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        var flow = createFlow(console, client, validOptions());
+
+        await flow.RunAsync(CancellationToken.None);
+
+        Assert.Equal(1, client.FieldsCalls);
+        Assert.Equal("live grants", client.LastFieldsDataset);
+        Assert.Equal("live grants", client.LastSearch!.Dataset);
+        Assert.Contains("name", console.Output, StringComparison.Ordinal);
+        Assert.Contains("displayName", console.Output, StringComparison.Ordinal);
+        Assert.Contains("defaultQueryField", console.Output, StringComparison.Ordinal);
+        Assert.Contains("alpha", console.Output, StringComparison.Ordinal);
+        Assert.Contains("zeta", console.Output, StringComparison.Ordinal);
+        Assert.True(console.Output.IndexOf("alpha", StringComparison.Ordinal) < console.Output.IndexOf("zeta", StringComparison.Ordinal));
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures field discovery cannot be selected before a dataset is selected.</summary>
+    [Fact]
+    public async Task RunAsync_BacksOutBeforeSelection_DoesNotRequestFields()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        var client = createHealthyClient();
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        var flow = createFlow(console, client, validOptions());
+
+        await flow.RunAsync(CancellationToken.None);
+
+        Assert.Equal(0, client.FieldsCalls);
+        Assert.DoesNotContain("View Fields", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures an empty field response reports no fields and still returns to the dataset menu.</summary>
+    [Fact]
+    public async Task RunAsync_EmptyFields_ReturnsToDatasetMenu()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        var client = createHealthyClient();
+        client.Fields = OperationResult<IReadOnlyList<SearchField>>.Success([]);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        var flow = createFlow(console, client, validOptions());
+
+        await flow.RunAsync(CancellationToken.None);
+
+        Assert.Contains("no fields", console.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, client.FieldsCalls);
 
         #endregion
     }
@@ -128,7 +245,8 @@ public sealed class InteractiveISearchFlowTests
             Options.Create(options),
             new ISearchOptionsValidator(),
             client,
-            new SearchResultsPager(console));
+            new SearchResultsPager(console),
+            new SearchFieldsPager(console));
 
         #endregion
     }
@@ -142,6 +260,7 @@ public sealed class InteractiveISearchFlowTests
 
         var console = new TestConsole();
         console.Profile.Capabilities.Interactive = true;
+        console.Profile.Width = 240;
         console.Profile.Height = 200;
         return console;
 
@@ -156,6 +275,25 @@ public sealed class InteractiveISearchFlowTests
         ApiKey = "synthetic-test-key",
         ContactEmail = "operator@example.org",
         MinimumRequestIntervalMilliseconds = 0
+    };
+
+    /**************************************************************/
+    /// <summary>Creates a healthy fake client with one live dataset.</summary>
+    /// <returns>The configured fake iSearch client.</returns>
+    private static FakeClient createHealthyClient() => new()
+    {
+        Health = OperationResult<SearchHealthResponse>.Success(new SearchHealthResponse
+        {
+            Status = "UP",
+            Payload = JsonSerializer.SerializeToElement(new { status = "UP" })
+        }),
+        Datasets = OperationResult<IReadOnlyList<string>>.Success(["live grants"]),
+        Search = OperationResult<SearchResponse>.Success(new SearchResponse
+        {
+            ReturnedCount = 0,
+            TotalCount = 0,
+            Results = []
+        })
     };
 
     /**************************************************************/
@@ -179,12 +317,24 @@ public sealed class InteractiveISearchFlowTests
             [new OperationMessage { Code = "test.search", Message = "Search was not configured.", Severity = OperationMessageSeverity.Error }]);
 
         /**************************************************************/
+        /// <summary>Gets or sets the field result.</summary>
+        public OperationResult<IReadOnlyList<SearchField>> Fields { get; set; } = OperationResult<IReadOnlyList<SearchField>>.Success([]);
+
+        /**************************************************************/
         /// <summary>Gets the number of health calls.</summary>
         public int HealthCalls { get; private set; }
 
         /**************************************************************/
         /// <summary>Gets the number of dataset calls.</summary>
         public int DatasetCalls { get; private set; }
+
+        /**************************************************************/
+        /// <summary>Gets the number of field calls.</summary>
+        public int FieldsCalls { get; private set; }
+
+        /**************************************************************/
+        /// <summary>Gets the dataset used for the last field call.</summary>
+        public string? LastFieldsDataset { get; private set; }
 
         /**************************************************************/
         /// <summary>Gets the last submitted request.</summary>
@@ -206,6 +356,17 @@ public sealed class InteractiveISearchFlowTests
         {
             DatasetCalls++;
             return Task.FromResult(Datasets);
+        }
+
+        /**************************************************************/
+        /// <summary>Records and returns the configured field result.</summary>
+        /// <param name="dataset">The selected dataset.</param>
+        /// <param name="cancellationToken">The ignored test cancellation token.</param>
+        public Task<OperationResult<IReadOnlyList<SearchField>>> GetFieldsAsync(string dataset, CancellationToken cancellationToken)
+        {
+            FieldsCalls++;
+            LastFieldsDataset = dataset;
+            return Task.FromResult(Fields);
         }
 
         /**************************************************************/

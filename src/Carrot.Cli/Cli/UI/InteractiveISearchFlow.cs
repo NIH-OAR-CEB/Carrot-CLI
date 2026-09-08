@@ -17,6 +17,7 @@ namespace Carrot.Cli.Cli.UI;
 /// <seealso cref="ISearchFlow"/>
 /// <seealso cref="IISearchApiClient"/>
 /// <seealso cref="ISearchResultsPager"/>
+/// <seealso cref="ISearchFieldsPager"/>
 internal sealed class InteractiveISearchFlow : ISearchFlow
 {
     #region implementation
@@ -26,6 +27,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     private readonly ISearchOptionsValidator _optionsValidator;
     private readonly IISearchApiClient _client;
     private readonly ISearchResultsPager _resultsPager;
+    private readonly ISearchFieldsPager _fieldsPager;
 
     /**************************************************************/
     /// <summary>Initializes the interactive flow with configuration, API, and presentation boundaries.</summary>
@@ -34,12 +36,14 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     /// <param name="optionsValidator">The feature-local configuration validator.</param>
     /// <param name="client">The authenticated iSearch API boundary.</param>
     /// <param name="resultsPager">The bounded generic-record renderer.</param>
+    /// <param name="fieldsPager">The bounded field-metadata renderer.</param>
     public InteractiveISearchFlow(
         IAnsiConsole console,
         IOptions<ISearchOptions> options,
         ISearchOptionsValidator optionsValidator,
         IISearchApiClient client,
-        ISearchResultsPager resultsPager)
+        ISearchResultsPager resultsPager,
+        ISearchFieldsPager fieldsPager)
     {
         #region implementation
 
@@ -48,11 +52,13 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         ArgumentNullException.ThrowIfNull(optionsValidator);
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(resultsPager);
+        ArgumentNullException.ThrowIfNull(fieldsPager);
         _console = console;
         _options = options.Value;
         _optionsValidator = optionsValidator;
         _client = client;
         _resultsPager = resultsPager;
+        _fieldsPager = fieldsPager;
 
         #endregion
     }
@@ -125,6 +131,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             var choices = new List<DatasetChoice> { DatasetChoice.SelectDatabase };
             if (selectedDatabase is not null)
             {
+                choices.Add(DatasetChoice.ViewFields);
                 choices.Add(DatasetChoice.SubmitQuery);
             }
 
@@ -137,6 +144,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                 .UseConverter(choice => choice switch
                 {
                     DatasetChoice.SelectDatabase => "Select Database",
+                    DatasetChoice.ViewFields => "View Fields",
                     DatasetChoice.SubmitQuery => "Submit Query",
                     DatasetChoice.Back => "Back to Main Menu",
                     _ => choice.ToString()
@@ -154,6 +162,13 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                         selectedDatabase,
                         cancellationToken).ConfigureAwait(false);
                     break;
+                case DatasetChoice.ViewFields:
+                    if (selectedDatabase is not null)
+                    {
+                        await viewFieldsAsync(selectedDatabase, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    break;
                 case DatasetChoice.SubmitQuery:
                     if (selectedDatabase is not null)
                     {
@@ -167,6 +182,26 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                     throw new InvalidOperationException($"Unsupported iSearch action: {selected}");
             }
         }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Retrieves and displays fields for the retained dataset before returning to its menu.</summary>
+    /// <param name="database">The exact selected dataset name.</param>
+    /// <param name="cancellationToken">The token signaling request or console cancellation.</param>
+    private async Task viewFieldsAsync(string database, CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        var result = await _client.GetFieldsAsync(database, cancellationToken).ConfigureAwait(false);
+        if (result.Status == OperationStatus.Failure)
+        {
+            writeMessages(result.Messages);
+            return;
+        }
+
+        await _fieldsPager.ShowAsync(result.Value!, cancellationToken).ConfigureAwait(false);
 
         #endregion
     }
@@ -255,6 +290,10 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         /**************************************************************/
         /// <summary>Opens the live dataset picker.</summary>
         SelectDatabase,
+
+        /**************************************************************/
+        /// <summary>Displays field metadata for the retained dataset.</summary>
+        ViewFields,
 
         /**************************************************************/
         /// <summary>Prompts for and submits a query for the retained dataset.</summary>

@@ -40,9 +40,17 @@ internal sealed class ISearchOptions
     public int MinimumRequestIntervalMilliseconds { get; set; } = 1_000;
 
     /**************************************************************/
-    /// <summary>Gets or sets the maximum response text retained in a user-facing diagnostic.</summary>
-    /// <remarks>Health and dataset payloads exceeding this limit are rejected before display.</remarks>
+    /// <summary>Gets or sets the maximum response size for ordinary iSearch operations in characters.</summary>
+    /// <remarks>Health, dataset, and search payloads exceeding this limit are rejected before display.</remarks>
     public int MaximumResponseCharacters { get; set; } = 8_192;
+
+    /**************************************************************/
+    /// <summary>Gets or sets the maximum field-discovery response size in characters.</summary>
+    /// <remarks>
+    /// Field schemas can contain many definitions, so this separate bound is larger than the
+    /// general response limit while still preventing an unbounded successful payload.
+    /// </remarks>
+    public int MaximumFieldsResponseCharacters { get; set; } = 1_048_576;
 
     #endregion
 }

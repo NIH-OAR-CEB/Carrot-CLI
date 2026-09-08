@@ -28,6 +28,16 @@ internal interface IISearchApiClient
     Task<OperationResult<IReadOnlyList<string>>> GetDatasetsAsync(CancellationToken cancellationToken);
 
     /**************************************************************/
+    /// <summary>Retrieves field metadata from <c>GET /fields/{dataset}</c>.</summary>
+    /// <param name="dataset">The nonempty dataset name whose field schema is requested.</param>
+    /// <param name="cancellationToken">The token that cancels the request.</param>
+    /// <returns>The validated field definitions or a safe failure.</returns>
+    /// <seealso cref="SearchField"/>
+    Task<OperationResult<IReadOnlyList<SearchField>>> GetFieldsAsync(
+        string dataset,
+        CancellationToken cancellationToken);
+
+    /**************************************************************/
     /// <summary>Submits one bounded search request to <c>GET /search/{dataset}</c>.</summary>
     /// <param name="request">The selected dataset and nonempty query controls.</param>
     /// <param name="cancellationToken">The token that cancels the request.</param>

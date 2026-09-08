@@ -97,6 +97,36 @@ internal sealed class ISearchApiClient : IISearchApiClient
     }
 
     /**************************************************************/
+    /// <summary>Calls <c>GET /fields/{dataset}</c> and validates the field array response.</summary>
+    /// <param name="dataset">The nonempty dataset name to encode into the request path.</param>
+    /// <param name="cancellationToken">The token that cancels the operation.</param>
+    /// <returns>The typed field definitions or an expected operation failure.</returns>
+    /// <remarks>Only the required field name is enforced; optional service metadata remains nullable.</remarks>
+    public Task<OperationResult<IReadOnlyList<SearchField>>> GetFieldsAsync(
+        string dataset,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        if (string.IsNullOrWhiteSpace(dataset))
+        {
+            return Task.FromResult(failure<IReadOnlyList<SearchField>>(
+                "isearch.request.invalid",
+                "The iSearch fields request must contain a dataset."));
+        }
+
+        return sendAsync(
+            "fields",
+            $"fields/{Uri.EscapeDataString(dataset)}",
+            HttpMethod.Get,
+            contentFactory: null,
+            parseFieldsAsync,
+            cancellationToken);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Calls the dataset-scoped <c>GET /search/{dataset}</c> endpoint with a bounded query.</summary>
     /// <param name="request">The query request to validate and submit.</param>
     /// <param name="cancellationToken">The token that cancels the operation.</param>
@@ -172,7 +202,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
         if (_options.TransientRetryCount < 0
             || _options.MinimumRequestIntervalMilliseconds < 0
-            || _options.MaximumResponseCharacters <= 0)
+            || _options.MaximumResponseCharacters <= 0
+            || _options.MaximumFieldsResponseCharacters <= 0)
         {
             return failure<TResponse>("isearch.configuration.invalid", "iSearch retry, pacing, and response-limit settings are invalid.");
         }
@@ -439,6 +470,88 @@ internal sealed class ISearchApiClient : IISearchApiClient
         }
 
         return OperationResult<IReadOnlyList<string>>.Success(datasets);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Parses the field array and requires each item to provide a nonempty name.</summary>
+    /// <param name="response">The successful HTTP response.</param>
+    /// <param name="cancellationToken">The operation cancellation token.</param>
+    /// <returns>The field definitions or a malformed-response failure.</returns>
+    private async Task<OperationResult<IReadOnlyList<SearchField>>> parseFieldsAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        using var document = await readJsonAsync(
+            response,
+            cancellationToken,
+            _options.MaximumFieldsResponseCharacters).ConfigureAwait(false);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return failure<IReadOnlyList<SearchField>>("isearch.response.malformed", "iSearch fields returned a non-array JSON payload.");
+        }
+
+        var fields = new List<SearchField>();
+        foreach (var element in document.RootElement.EnumerateArray())
+        {
+            if (element.ValueKind != JsonValueKind.Object
+                || !element.TryGetProperty("name", out var nameElement)
+                || nameElement.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(nameElement.GetString()))
+            {
+                return failure<IReadOnlyList<SearchField>>("isearch.response.malformed", "iSearch fields must contain objects with nonempty names.");
+            }
+
+            fields.Add(new SearchField
+            {
+                Name = nameElement.GetString()!,
+                DisplayName = getOptionalString(element, "displayName"),
+                FieldType = getOptionalString(element, "fieldType"),
+                DefaultQueryField = getOptionalBoolean(element, "defaultQueryField"),
+                DefaultResultField = getOptionalBoolean(element, "defaultResultField"),
+                MultiValued = getOptionalBoolean(element, "multiValued"),
+                SearchOnly = getOptionalBoolean(element, "searchOnly")
+            });
+        }
+
+        return OperationResult<IReadOnlyList<SearchField>>.Success(fields);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Reads an optional JSON string without rejecting omitted or null metadata.</summary>
+    /// <param name="element">The field object to inspect.</param>
+    /// <param name="propertyName">The JSON property name.</param>
+    /// <returns>The service string or <see langword="null"/> when it is absent or non-string.</returns>
+    private static string? getOptionalString(JsonElement element, string propertyName)
+    {
+        #region implementation
+
+        return element.TryGetProperty(propertyName, out var property)
+            && property.ValueKind == JsonValueKind.String
+            ? property.GetString()
+            : null;
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Reads an optional JSON Boolean without inventing a value when it is omitted.</summary>
+    /// <param name="element">The field object to inspect.</param>
+    /// <param name="propertyName">The JSON property name.</param>
+    /// <returns>The service Boolean or <see langword="null"/> when it is absent or not Boolean.</returns>
+    private static bool? getOptionalBoolean(JsonElement element, string propertyName)
+    {
+        #region implementation
+
+        return element.TryGetProperty(propertyName, out var property)
+            && property.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? property.GetBoolean()
+            : null;
 
         #endregion
     }

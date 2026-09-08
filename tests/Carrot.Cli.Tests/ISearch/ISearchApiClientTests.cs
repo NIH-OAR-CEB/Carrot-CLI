@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.ISearch;
 using Carrot.Cli.ISearch.Contracts;
@@ -85,6 +86,116 @@ public sealed class ISearchApiClientTests
         Assert.Empty(handler.RequestBodies);
         Assert.Equal(1, result.Value!.ReturnedCount);
         Assert.Equal(7, result.Value.Results[0].GetProperty("id").GetInt32());
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures field discovery uses an encoded authenticated GET and preserves metadata.</summary>
+    [Fact]
+    public async Task GetFieldsAsync_UsesEncodedDatasetPathAndParsesMetadata()
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => json(
+            HttpStatusCode.OK,
+            "[{\"name\":\"grantNumber\",\"displayName\":\"Grant [number]\",\"fieldType\":\"string\",\"defaultQueryField\":true,\"defaultResultField\":false,\"multiValued\":false,\"searchOnly\":true},{\"name\":\"optional\"}]"));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.GetFieldsAsync("grants/live", CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal("https://isearch.test/api/fields/grants%2Flive", request.RequestUri!.AbsoluteUri);
+        Assert.Equal("apiKey=synthetic-test-key", request.Headers.GetValues("Cookie").Single());
+        Assert.Equal("operator@example.org", request.Headers.GetValues("From").Single());
+        Assert.Equal("grantNumber", result.Value![0].Name);
+        Assert.Equal("Grant [number]", result.Value[0].DisplayName);
+        Assert.Equal("string", result.Value[0].FieldType);
+        Assert.True(result.Value[0].DefaultQueryField);
+        Assert.False(result.Value[0].DefaultResultField);
+        Assert.False(result.Value[0].MultiValued);
+        Assert.True(result.Value[0].SearchOnly);
+        Assert.Null(result.Value[1].DisplayName);
+        Assert.Null(result.Value[1].DefaultQueryField);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures an empty dataset name fails before an authenticated request is constructed.</summary>
+    [Fact]
+    public async Task GetFieldsAsync_EmptyDataset_DoesNotSendRequest()
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.GetFieldsAsync(" ", CancellationToken.None);
+
+        Assert.Empty(handler.Requests);
+        Assert.Equal("isearch.request.invalid", result.Messages[0].Code);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures non-array and unnamed field responses become safe malformed failures.</summary>
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("[{\"displayName\":\"Unnamed\"}]")]
+    [InlineData("[{\"name\":\" \"}]")]
+    public async Task GetFieldsAsync_InvalidPayload_ReturnsMalformedFailure(string payload)
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => json(HttpStatusCode.OK, payload));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.GetFieldsAsync("grants", CancellationToken.None);
+
+        Assert.Equal("isearch.response.malformed", result.Messages[0].Code);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures field discovery accepts a schema larger than the general response bound.</summary>
+    [Fact]
+    public async Task GetFieldsAsync_LargeFieldPayload_UsesDedicatedFieldLimit()
+    {
+        #region implementation
+
+        var payload = $"[{{\"name\":\"large-field\",\"displayName\":\"{new string('x', 9_000)}\"}}]";
+        var handler = new RecordingHandler(_ => json(HttpStatusCode.OK, payload));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.GetFieldsAsync("grants", CancellationToken.None);
+
+        Assert.Equal(OperationStatus.Success, result.Status);
+        Assert.Equal("large-field", result.Value![0].Name);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures the dedicated field bound still rejects an unbounded successful payload.</summary>
+    [Fact]
+    public async Task GetFieldsAsync_ExceedsDedicatedFieldLimit_ReturnsMalformedFailure()
+    {
+        #region implementation
+
+        var options = validOptions();
+        options.MaximumFieldsResponseCharacters = 100;
+        var handler = new RecordingHandler(_ => json(
+            HttpStatusCode.OK,
+            $"[{{\"name\":\"large-field\",\"displayName\":\"{new string('x', 200)}\"}}]"));
+        var client = createClient(handler, options);
+
+        var result = await client.GetFieldsAsync("grants", CancellationToken.None);
+
+        Assert.Equal("isearch.response.malformed", result.Messages[0].Code);
 
         #endregion
     }

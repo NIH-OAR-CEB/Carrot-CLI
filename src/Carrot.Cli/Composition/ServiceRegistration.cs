@@ -119,6 +119,7 @@ internal static class ServiceRegistration
         services.AddTransient<ProcessCommand>();
         services.AddTransient<ServerInformationFlow>();
         services.AddTransient<ISearchResultsPager, SearchResultsPager>();
+        services.AddTransient<ISearchFieldsPager, SearchFieldsPager>();
         services.AddTransient<ISearchFlow, InteractiveISearchFlow>();
         services.AddTransient<InteractivePreviewFlow>();
         services.AddSingleton<ICommandRunLogger, CommandRunLogger>();
