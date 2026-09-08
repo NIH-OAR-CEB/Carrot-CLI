@@ -26,7 +26,7 @@ public sealed class HelpSystemTests
         var provider = new EmbeddedHelpContentProvider();
 
         // Act and Assert
-        Assert.Equal(13, catalog.Topics.Count);
+        Assert.Equal(14, catalog.Topics.Count);
         Assert.Equal("task-scheduler", catalog.Topics[1].Key);
         foreach (var expectedTopic in catalog.Topics)
         {

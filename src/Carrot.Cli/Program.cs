@@ -1,5 +1,6 @@
 using Carrot.Cli.Cli;
 using Carrot.Cli.Composition;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
 namespace Carrot.Cli;
@@ -14,7 +15,7 @@ namespace Carrot.Cli;
 /// </remarks>
 /// <seealso cref="Composition.ServiceRegistration"/>
 /// <seealso cref="Cli.CommandAppFactory"/>
-public static class Program
+public class Program
 {
     #region implementation
 
@@ -30,6 +31,10 @@ public static class Program
         #region implementation
 
         var builder = Host.CreateApplicationBuilder(args);
+
+        // Load the configured local credentials even when the debugger does not set Development.
+        builder.Configuration.AddUserSecrets<Program>(optional: true);
+
         builder.Services.AddCarrotCli(builder.Configuration);
 
         // Spectre owns construction and disposal of the service provider through its registrar.

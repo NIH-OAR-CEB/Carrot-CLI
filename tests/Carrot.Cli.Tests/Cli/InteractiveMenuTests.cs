@@ -4,6 +4,7 @@ using Carrot.Cli.CarrotApi.Contracts;
 using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.Input;
+using Carrot.Cli.ISearch;
 using Carrot.Cli.Processing;
 using Carrot.Cli.Reporting;
 using Microsoft.Extensions.Options;
@@ -31,7 +32,7 @@ public sealed class InteractiveMenuTests
 
         // Arrange
         using var console = createInteractiveConsole();
-        pushDownKeys(console, 5);
+        pushDownKeys(console, 6);
         console.Input.PushKey(ConsoleKey.Enter);
         var menu = createMenu(console);
 
@@ -65,7 +66,7 @@ public sealed class InteractiveMenuTests
         console.Input.PushTextWithEnter(string.Empty);
         pushDownKeys(console, 2);
         console.Input.PushKey(ConsoleKey.Enter);
-        pushDownKeys(console, 5);
+        pushDownKeys(console, 6);
         console.Input.PushKey(ConsoleKey.Enter);
         var menu = createMenu(console);
 
@@ -97,7 +98,7 @@ public sealed class InteractiveMenuTests
         console.Input.PushKey(ConsoleKey.Enter);
         pushDownKeys(console, 2);
         console.Input.PushKey(ConsoleKey.Enter);
-        pushDownKeys(console, 5);
+        pushDownKeys(console, 6);
         console.Input.PushKey(ConsoleKey.Enter);
         var menu = createMenu(console);
 
@@ -129,7 +130,7 @@ public sealed class InteractiveMenuTests
         console.Input.PushKey(ConsoleKey.Enter);
         pushDownKeys(console, 2);
         console.Input.PushKey(ConsoleKey.Enter);
-        pushDownKeys(console, 5);
+        pushDownKeys(console, 6);
         console.Input.PushKey(ConsoleKey.Enter);
         var menu = createMenu(console);
 
@@ -155,12 +156,12 @@ public sealed class InteractiveMenuTests
 
         // Arrange
         using var console = createInteractiveConsole();
-        pushDownKeys(console, 3);
+        pushDownKeys(console, 4);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
-        pushDownKeys(console, 13);
+        pushDownKeys(console, 14);
         console.Input.PushKey(ConsoleKey.Enter);
-        pushDownKeys(console, 5);
+        pushDownKeys(console, 6);
         console.Input.PushKey(ConsoleKey.Enter);
         var menu = createMenu(console);
 
@@ -301,7 +302,8 @@ public sealed class InteractiveMenuTests
             aboutRenderer,
             processDocumentsMenu,
             interactivePreviewFlow,
-            serverInformationFlow);
+            serverInformationFlow,
+            new StubISearchFlow());
 
         #endregion
     }
@@ -499,6 +501,20 @@ public sealed class InteractiveMenuTests
 
             #endregion
         }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Prevents unrelated navigation tests from entering the iSearch flow.</summary>
+    private sealed class StubISearchFlow : ISearchFlow
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Completes immediately when iSearch is not the subject of the test.</summary>
+        /// <param name="cancellationToken">The token signaling console cancellation.</param>
+        public Task RunAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         #endregion
     }

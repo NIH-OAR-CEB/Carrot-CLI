@@ -7,6 +7,7 @@ using Carrot.Cli.Common;
 using Carrot.Cli.Extraction;
 using Carrot.Cli.Extraction.Extractors;
 using Carrot.Cli.Input;
+using Carrot.Cli.ISearch;
 using Carrot.Cli.Processing;
 using Carrot.Cli.Reporting;
 using Microsoft.Extensions.Configuration;
@@ -21,7 +22,8 @@ namespace Carrot.Cli.Composition;
 /// </summary>
 /// <remarks>
 /// Interactive preparation, reusable clustering configuration, in-memory Carrot processing,
-/// atomic JSON persistence, named request preview/process, and explicit processed-result Excel export registrations are active.
+/// atomic JSON persistence, named request preview/process, explicit processed-result Excel export,
+/// and optional iSearch registrations are active.
 /// </remarks>
 /// <seealso cref="CarrotCliOptions"/>
 internal static class ServiceRegistration
@@ -48,6 +50,11 @@ internal static class ServiceRegistration
         services.AddOptions<CarrotCliOptions>()
             .Bind(configuration.GetSection("CarrotCli"))
             .ValidateOnStart();
+        services.AddOptions<ISearchOptions>()
+            .Bind(configuration.GetSection("iSearch"));
+
+        // iSearch credentials remain optional at startup; the feature validates them on entry.
+        services.AddSingleton<ISearchOptionsValidator>();
 
         services.AddSingleton<DocumentFormatCatalog>();
         services.AddSingleton<InputPathNormalizer>();
@@ -84,6 +91,20 @@ internal static class ServiceRegistration
                 AllowAutoRedirect = false
             });
 
+        // Keep iSearch isolated from the Carrot client because its host, authentication, and contracts differ.
+        services.AddHttpClient<IISearchApiClient, ISearchApiClient>(client =>
+            {
+                client.BaseAddress = new Uri("https://isearch.opa-tools.od.nih.gov/api/", UriKind.Absolute);
+                client.Timeout = Timeout.InfiniteTimeSpan;
+                client.DefaultRequestHeaders.Accept.Add(
+                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                // Never forward the authenticated cookie to an unexpected redirect target.
+                AllowAutoRedirect = false
+            });
+
         services.AddSingleton<HelpTopicCatalog>();
         services.AddSingleton<IHelpContentProvider, EmbeddedHelpContentProvider>();
         services.AddSingleton<IApplicationPreambleProvider, FileApplicationPreambleProvider>();
@@ -97,6 +118,8 @@ internal static class ServiceRegistration
         services.AddTransient<PreviewCommand>();
         services.AddTransient<ProcessCommand>();
         services.AddTransient<ServerInformationFlow>();
+        services.AddTransient<ISearchResultsPager, SearchResultsPager>();
+        services.AddTransient<ISearchFlow, InteractiveISearchFlow>();
         services.AddTransient<InteractivePreviewFlow>();
         services.AddSingleton<ICommandRunLogger, CommandRunLogger>();
         services.AddTransient<PreparedResultsPager>();

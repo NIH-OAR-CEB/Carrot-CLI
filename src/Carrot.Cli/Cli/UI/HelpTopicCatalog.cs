@@ -37,6 +37,7 @@ internal sealed class HelpTopicCatalog
             createTopic("process", "Process Documents"),
             createTopic("preview", "Preview Request"),
             createTopic("server-info", "Server Information", "server", "server-information"),
+            createTopic("isearch", "iSearch", "i-search"),
             createTopic("commands-options", "Commands and Options", "commands", "options"),
             createTopic("supported-formats", "Supported Formats", "formats"),
             createTopic("extraction-rules", "Extraction Rules", "extraction"),

@@ -8,11 +8,12 @@ namespace Carrot.Cli.Cli.UI;
 /// Coordinates the selectable main, workflow, and help menus used by human operators.
 /// </summary>
 /// <remarks>
-/// Process Documents, Preview Request, and Server Information delegate to focused interactive flows.
+/// Process Documents, Preview Request, Server Information, and iSearch delegate to focused interactive flows.
 /// </remarks>
 /// <seealso cref="HelpRenderer"/>
 /// <seealso cref="AboutRenderer"/>
 /// <seealso cref="ApplicationPreambleRenderer"/>
+/// <seealso cref="ISearchFlow"/>
 internal sealed class InteractiveMenu
 {
     #region implementation
@@ -25,6 +26,7 @@ internal sealed class InteractiveMenu
     private readonly ProcessDocumentsMenu _processDocumentsMenu;
     private readonly InteractivePreviewFlow _interactivePreviewFlow;
     private readonly ServerInformationFlow _serverInformationFlow;
+    private readonly ISearchFlow _iSearchFlow;
 
     /**************************************************************/
     /// <summary>Defines stable actions available from the application main menu.</summary>
@@ -41,6 +43,10 @@ internal sealed class InteractiveMenu
         /**************************************************************/
         /// <summary>Opens the server-configuration workflow menu.</summary>
         ServerInfo,
+
+        /**************************************************************/
+        /// <summary>Opens the optional iSearch health, dataset, and query workflow.</summary>
+        ISearch,
 
         /**************************************************************/
         /// <summary>Opens the curated help-topic menu.</summary>
@@ -66,6 +72,7 @@ internal sealed class InteractiveMenu
     /// <param name="processDocumentsMenu">The implemented document preparation and review menu.</param>
     /// <param name="interactivePreviewFlow">The independent interactive request-preview flow.</param>
     /// <param name="serverInformationFlow">The endpoint-backed Server Information flow.</param>
+    /// <param name="iSearchFlow">The optional iSearch health, discovery, and query flow.</param>
     public InteractiveMenu(
         IAnsiConsole console,
         ApplicationPreambleRenderer preambleRenderer,
@@ -73,7 +80,8 @@ internal sealed class InteractiveMenu
         AboutRenderer aboutRenderer,
         ProcessDocumentsMenu processDocumentsMenu,
         InteractivePreviewFlow interactivePreviewFlow,
-        ServerInformationFlow serverInformationFlow)
+        ServerInformationFlow serverInformationFlow,
+        ISearchFlow iSearchFlow)
     {
         #region implementation
 
@@ -84,6 +92,7 @@ internal sealed class InteractiveMenu
         ArgumentNullException.ThrowIfNull(processDocumentsMenu);
         ArgumentNullException.ThrowIfNull(interactivePreviewFlow);
         ArgumentNullException.ThrowIfNull(serverInformationFlow);
+        ArgumentNullException.ThrowIfNull(iSearchFlow);
 
         _console = console;
         _preambleRenderer = preambleRenderer;
@@ -92,6 +101,7 @@ internal sealed class InteractiveMenu
         _processDocumentsMenu = processDocumentsMenu;
         _interactivePreviewFlow = interactivePreviewFlow;
         _serverInformationFlow = serverInformationFlow;
+        _iSearchFlow = iSearchFlow;
 
         #endregion
     }
@@ -135,6 +145,9 @@ internal sealed class InteractiveMenu
                     case MainMenuChoice.ServerInfo:
                         await runServerInformationMenuAsync(cancellationToken)
                             .ConfigureAwait(false);
+                        break;
+                    case MainMenuChoice.ISearch:
+                        await _iSearchFlow.RunAsync(cancellationToken).ConfigureAwait(false);
                         break;
                     case MainMenuChoice.Help:
                         await runHelpMenuAsync(cancellationToken).ConfigureAwait(false);
@@ -220,6 +233,7 @@ internal sealed class InteractiveMenu
                 MainMenuChoice.Process => "Process Documents",
                 MainMenuChoice.Preview => "Preview Request",
                 MainMenuChoice.ServerInfo => "Server Information",
+                MainMenuChoice.ISearch => "iSearch",
                 MainMenuChoice.Help => "Help",
                 MainMenuChoice.About => "About",
                 MainMenuChoice.Exit => "Exit",

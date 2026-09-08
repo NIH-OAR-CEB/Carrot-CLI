@@ -7,6 +7,7 @@ It targets .NET 10 and is compatible with the Carrot 4.8.6 server API. You need 
 ## What it does
 
 - Provides an interactive menu for preparing, previewing, clustering, and exporting documents.
+- Provides an optional interactive iSearch health, dataset discovery, and bounded query workflow.
 - Offers script-friendly `server-info`, `preview`, and `process` commands that never prompt.
 - Reads Word, Excel, PowerPoint, text, Markdown, searchable PDF, folders, and ZIP archives.
 - Validates the selected algorithm, language, or server template through `GET /list` before processing.
@@ -29,6 +30,8 @@ To inspect a server without creating files:
 ```powershell
 dotnet run --project .\src\Carrot.Cli\Carrot.Cli.csproj -- server-info --endpoint "http://localhost:8080/service"
 ```
+
+To enable **iSearch**, store `iSearch:apiKey` and `iSearch:contactEmail` in User Secrets. The interactive route checks `/health`, discovers datasets live, sends the key only as a cookie, limits requests to 100 records, and writes no search results. See [iSearch help](src/Carrot.Cli/Docs/isearch.md).
 
 ## Commands
 
@@ -102,7 +105,7 @@ Folder recursion is opt-in. The CLI ignores Office temporary files and reparse p
 
 The interactive **Process Documents** flow lets you add several paths, optionally enable recursion, prepare and page through results, preview the exact local JSON request, and then process the prepared items. The preview sends and writes nothing. After a successful process, results remain available to view or explicitly export to Excel.
 
-The interactive **Preview Request** flow prepares one input, validates it through `/list`, and lets you save a request or Workbench-compatible document-record array. **Server Information** displays the current `/list` response without persisting the endpoint.
+The interactive **Preview Request** flow prepares one input, validates it through `/list`, and lets you save a request or Workbench-compatible document-record array. **Server Information** displays the current `/list` response without persisting the endpoint. **iSearch** checks health, discovers live datasets, and displays bounded query results without writing them.
 
 Interactive Excel export writes a `Results` worksheet with one row per category membership. Unassigned documents receive one row with blank category fields. Export is atomic, confirms before overwriting an existing workbook, and never creates JSON sidecars or logs.
 

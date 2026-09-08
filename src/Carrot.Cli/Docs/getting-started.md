@@ -13,6 +13,8 @@ Run `carrot-cli` without arguments to open the interactive menu.
 
 The interactive **Preview Request** flow collects one input, endpoint, algorithm, and language; prepares the input, validates through `/list`, and pages the exact local request without calling `/cluster`. **Save Request JSON** is explicit, so a declined or failed save leaves the preview available. **Server Information** prompts for the nonpersisted Carrot endpoint (default `http://localhost:8080/service`) and displays the server's algorithms, languages, and templates from `/list`.
 
+The optional **iSearch** workflow requires `iSearch:apiKey` and `iSearch:contactEmail` in User Secrets. It checks `/health`, discovers live datasets, and submits selected-dataset queries with a 100-record limit. The key is sent only as a cookie, and results are displayed in memory without writing files; see [iSearch](isearch.md).
+
 For noninteractive syntax, run:
 
 ```text

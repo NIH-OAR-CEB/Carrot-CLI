@@ -21,6 +21,7 @@
 - **Content appears in the terminal or leaves the workstation:** prepared rows show a short preview, Preview JSON Package shows complete ready-document content, and Process Prepared Items sends complete extracted text to the selected endpoint; see Privacy before handling sensitive content.
 - **JSON preview looks truncated:** `↪` marks the visual continuation of the same long JSON string. Use Next Page to continue; the serialized value is not truncated.
 - **Scheduled task has no output:** configure **Start in**, quote paths, and choose an existing writable output directory or file path. Named `preview` writes its artifact; named `process` writes its workbook and optional sidecars. Both report stable exit codes, and `process --log-file` records safe lifecycle diagnostics.
+- **iSearch cannot start:** set both `iSearch:apiKey` and `iSearch:contactEmail` with `dotnet user-secrets`; the workflow checks these values before any request. A negative `/health` status prevents dataset discovery. See [iSearch](isearch.md).
 
 ## Command-line usage
 
