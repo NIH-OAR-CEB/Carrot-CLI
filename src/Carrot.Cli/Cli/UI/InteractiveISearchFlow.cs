@@ -216,7 +216,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         // The UI fixes the row bound and Boolean operator for the first interactive query phase.
         var result = await _client.SearchAsync(new SearchRequest
         {
-            Database = database,
+            Dataset = database,
             Query = query.Trim(),
             DefaultOp = "AND",
             Rows = 100

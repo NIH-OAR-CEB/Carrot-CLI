@@ -84,7 +84,7 @@ public sealed class InteractiveISearchFlowTests
 
         await flow.RunAsync(CancellationToken.None);
 
-        Assert.Equal("live-grants", client.LastSearch!.Database);
+        Assert.Equal("live-grants", client.LastSearch!.Dataset);
         Assert.Equal("vaccine research", client.LastSearch.Query);
         Assert.Equal("AND", client.LastSearch.DefaultOp);
         Assert.Equal(100, client.LastSearch.Rows);

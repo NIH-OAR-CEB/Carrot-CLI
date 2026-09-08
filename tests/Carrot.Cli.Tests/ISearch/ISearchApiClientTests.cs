@@ -58,9 +58,9 @@ public sealed class ISearchApiClientTests
     }
 
     /**************************************************************/
-    /// <summary>Ensures the search body contains the selected database and bounded controls.</summary>
+    /// <summary>Ensures the dataset-scoped GET search encodes the dataset, query, and bounded controls.</summary>
     [Fact]
-    public async Task SearchAsync_SerializesBoundedBodyAndParsesRecords()
+    public async Task SearchAsync_UsesEncodedDatasetScopedGetAndParsesRecords()
     {
         #region implementation
 
@@ -71,21 +71,48 @@ public sealed class ISearchApiClientTests
 
         var result = await client.SearchAsync(new SearchRequest
         {
-            Database = "live-dataset",
+            Dataset = "live-dataset",
             Query = "vaccine \"phase 1\"",
             DefaultOp = "AND",
             Rows = 100
         }, CancellationToken.None);
 
         var request = Assert.Single(handler.Requests);
-        var body = Assert.Single(handler.RequestBodies);
-        using var jsonBody = JsonDocument.Parse(body);
-        Assert.Equal("live-dataset", jsonBody.RootElement.GetProperty("database").GetString());
-        Assert.Equal("vaccine \"phase 1\"", jsonBody.RootElement.GetProperty("query").GetString());
-        Assert.Equal("AND", jsonBody.RootElement.GetProperty("defaultOp").GetString());
-        Assert.Equal(100, jsonBody.RootElement.GetProperty("rows").GetInt32());
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal(
+            "https://isearch.test/api/search/live-dataset?q=vaccine%20%22phase%201%22&defaultOp=AND&rows=100",
+            request.RequestUri!.AbsoluteUri);
+        Assert.Empty(handler.RequestBodies);
         Assert.Equal(1, result.Value!.ReturnedCount);
         Assert.Equal(7, result.Value.Results[0].GetProperty("id").GetInt32());
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Includes a bounded server diagnostic when a non-success response is returned.</summary>
+    [Fact]
+    public async Task SearchAsync_ServerFailure_IncludesResponseBodyWithoutCredential()
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => json(
+            HttpStatusCode.InternalServerError,
+            "{\"message\":\"support code: synthetic-error\"}"));
+        var options = validOptions();
+        options.TransientRetryCount = 0;
+        var client = createClient(handler, options);
+
+        var result = await client.SearchAsync(new SearchRequest
+        {
+            Dataset = "live-dataset",
+            Query = "vaccine",
+            DefaultOp = "AND",
+            Rows = 1
+        }, CancellationToken.None);
+
+        Assert.Contains("synthetic-error", result.Messages[0].Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic-test-key", result.Messages[0].Message, StringComparison.Ordinal);
 
         #endregion
     }

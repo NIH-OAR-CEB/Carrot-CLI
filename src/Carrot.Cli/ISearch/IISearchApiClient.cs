@@ -28,7 +28,7 @@ internal interface IISearchApiClient
     Task<OperationResult<IReadOnlyList<string>>> GetDatasetsAsync(CancellationToken cancellationToken);
 
     /**************************************************************/
-    /// <summary>Submits one bounded search request to <c>POST /search</c>.</summary>
+    /// <summary>Submits one bounded search request to <c>GET /search/{dataset}</c>.</summary>
     /// <param name="request">The selected dataset and nonempty query controls.</param>
     /// <param name="cancellationToken">The token that cancels the request.</param>
     /// <returns>The validated count and generic JSON records or a safe failure.</returns>

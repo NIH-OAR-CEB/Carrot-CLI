@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
@@ -26,7 +25,6 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
     private const string BaseAddressText = "https://isearch.opa-tools.od.nih.gov/api/";
     private const int MaximumRows = 100;
-    private static readonly JsonSerializerOptions SerializerOptions = new();
     private readonly HttpClient _httpClient;
     private readonly ISearchOptions _options;
     private readonly ILogger<ISearchApiClient> _logger;
@@ -69,6 +67,7 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
         return sendAsync(
             "health",
+            "health",
             HttpMethod.Get,
             contentFactory: null,
             parseResponseAsync: parseHealthAsync,
@@ -88,6 +87,7 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
         return sendAsync(
             "datasets",
+            "datasets",
             HttpMethod.Get,
             contentFactory: null,
             parseResponseAsync: parseDatasetsAsync,
@@ -97,7 +97,7 @@ internal sealed class ISearchApiClient : IISearchApiClient
     }
 
     /**************************************************************/
-    /// <summary>Calls <c>POST /search</c> with a bounded, JSON-serialized query.</summary>
+    /// <summary>Calls the dataset-scoped <c>GET /search/{dataset}</c> endpoint with a bounded query.</summary>
     /// <param name="request">The query request to validate and submit.</param>
     /// <param name="cancellationToken">The token that cancels the operation.</param>
     /// <returns>The validated search envelope or an expected operation failure.</returns>
@@ -109,23 +109,27 @@ internal sealed class ISearchApiClient : IISearchApiClient
         #region implementation
 
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.Database)
+        if (string.IsNullOrWhiteSpace(request.Dataset)
             || string.IsNullOrWhiteSpace(request.Query)
             || !string.Equals(request.DefaultOp, "AND", StringComparison.Ordinal)
             || request.Rows is < 1 or > MaximumRows)
         {
             return Task.FromResult(failure<SearchResponse>(
                 "isearch.request.invalid",
-                "The iSearch request must contain a database, a query, defaultOp AND, and 1-100 rows."));
+                "The iSearch request must contain a dataset, a query, defaultOp AND, and 1-100 rows."));
         }
+
+        // The live dataset-scoped GET operation currently succeeds for grants while the body-based POST operation returns HTTP 500.
+        var requestUri = $"search/{Uri.EscapeDataString(request.Dataset)}"
+            + $"?q={Uri.EscapeDataString(request.Query)}"
+            + $"&defaultOp={Uri.EscapeDataString(request.DefaultOp)}"
+            + $"&rows={request.Rows}";
 
         return sendAsync(
             "search",
-            HttpMethod.Post,
-            () => new StringContent(
-                JsonSerializer.Serialize(request, SerializerOptions),
-                Encoding.UTF8,
-                "application/json"),
+            requestUri,
+            HttpMethod.Get,
+            contentFactory: null,
             parseSearchAsync,
             cancellationToken);
 
@@ -136,6 +140,7 @@ internal sealed class ISearchApiClient : IISearchApiClient
     /// <summary>Executes one operation with credential checks, pacing, bounded retries, and safe parsing.</summary>
     /// <typeparam name="TResponse">The successful response type.</typeparam>
     /// <param name="operation">The relative endpoint operation name.</param>
+    /// <param name="requestUri">The relative request URI, including any encoded query parameters.</param>
     /// <param name="method">The HTTP method.</param>
     /// <param name="contentFactory">The optional fresh request-content factory.</param>
     /// <param name="parseResponseAsync">The successful-response parser.</param>
@@ -143,6 +148,7 @@ internal sealed class ISearchApiClient : IISearchApiClient
     /// <returns>The parsed response or a safe operation failure.</returns>
     private async Task<OperationResult<TResponse>> sendAsync<TResponse>(
         string operation,
+        string requestUri,
         HttpMethod method,
         Func<HttpContent>? contentFactory,
         Func<HttpResponseMessage, CancellationToken, Task<OperationResult<TResponse>>> parseResponseAsync,
@@ -181,7 +187,7 @@ internal sealed class ISearchApiClient : IISearchApiClient
             try
             {
                 await waitForRequestSlotAsync(operationToken).ConfigureAwait(false);
-                using var request = createRequest(operation, method, contentFactory);
+                using var request = createRequest(requestUri, method, contentFactory);
                 using var response = await _httpClient
                     .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, operationToken)
                     .ConfigureAwait(false);
@@ -211,9 +217,13 @@ internal sealed class ISearchApiClient : IISearchApiClient
                     continue;
                 }
 
+                var responseBody = await readFailureBodyAsync(response, operationToken).ConfigureAwait(false);
+                var bodySuffix = string.IsNullOrWhiteSpace(responseBody)
+                    ? string.Empty
+                    : $" Response: {responseBody}";
                 return failure<TResponse>(
                     "isearch.http",
-                    $"iSearch {operation} returned HTTP {(int)response.StatusCode} ({response.ReasonPhrase ?? "Unknown Status"}).");
+                    $"iSearch {operation} returned HTTP {(int)response.StatusCode} ({response.ReasonPhrase ?? "Unknown Status"}).{bodySuffix}");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -318,16 +328,16 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
     /**************************************************************/
     /// <summary>Creates a fresh authenticated request for one retry attempt.</summary>
-    /// <param name="operation">The relative endpoint operation.</param>
+    /// <param name="requestUri">The relative request URI, including any encoded query parameters.</param>
     /// <param name="method">The HTTP method.</param>
     /// <param name="contentFactory">The optional request body factory.</param>
     /// <returns>The authenticated request message.</returns>
-    private HttpRequestMessage createRequest(string operation, HttpMethod method, Func<HttpContent>? contentFactory)
+    private HttpRequestMessage createRequest(string requestUri, HttpMethod method, Func<HttpContent>? contentFactory)
     {
         #region implementation
 
-        // Keep the secret in a cookie header; relative operation paths prevent accidental query-string leakage.
-        var request = new HttpRequestMessage(method, operation);
+        // Keep the secret in a cookie header; relative request paths keep the credential off the URI.
+        var request = new HttpRequestMessage(method, requestUri);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation("Cookie", $"apiKey={_options.ApiKey}");
         request.Headers.TryAddWithoutValidation("From", _options.ContactEmail);
@@ -337,6 +347,29 @@ internal sealed class ISearchApiClient : IISearchApiClient
         }
 
         return request;
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Reads a bounded non-success response body for operator diagnostics.</summary>
+    /// <param name="response">The failed HTTP response.</param>
+    /// <param name="cancellationToken">The operation cancellation token.</param>
+    /// <returns>The trimmed response body, or an empty string when no body was supplied.</returns>
+    /// <remarks>The configured character limit prevents an upstream failure from flooding terminal output or logs.</remarks>
+    private async Task<string> readFailureBodyAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (body.Length > _options.MaximumResponseCharacters)
+        {
+            body = body[.._options.MaximumResponseCharacters];
+        }
+
+        return body.Trim();
 
         #endregion
     }

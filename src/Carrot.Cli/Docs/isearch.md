@@ -19,7 +19,7 @@ The API key is sent only as the `apiKey` cookie to the iSearch HTTPS host. It is
 2. The CLI validates both local settings and calls `GET /health`. The returned availability payload is displayed safely.
 3. Dataset discovery runs only when the health payload reports `status: UP`. Dataset names come from the live `GET /datasets` response.
 4. Select a returned database, choose **Submit Query**, and enter a nonempty free-text or Lucene query.
-5. The CLI sends `POST /search` with the selected database, the query, `defaultOp: "AND"`, and at most 100 rows.
+5. The CLI sends the dataset-scoped `GET /search/{dataset}` request with URL-encoded `q`, `defaultOp=AND`, and at most 100 rows. The dataset-scoped route is used because the live body-based POST route currently returns HTTP 500.
 
 Results show returned and total counts plus generic JSON records. Queries and results remain in memory for the current visit only; no result files are written.
 
