@@ -4,6 +4,7 @@ using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.ISearch;
 using Carrot.Cli.ISearch.Contracts;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Spectre.Console.Testing;
 using Xunit;
@@ -70,14 +71,20 @@ public sealed class InteractiveISearchFlowTests
                 Results = [JsonSerializer.SerializeToElement(new { title = "A result" })]
             })
         };
-        // Select Database, choose the only live dataset, Submit Query, enter the query, then back out twice.
+        // Select Database, choose the only live dataset, select the configured return dataset,
+        // submit the query, enter the query, then back out twice.
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushTextWithEnter("vaccine research");
         console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
@@ -88,10 +95,37 @@ public sealed class InteractiveISearchFlowTests
 
         Assert.Equal("live-grants", client.LastSearch!.Dataset);
         Assert.Equal("vaccine research", client.LastSearch.Query);
+        Assert.Equal(["grantNumber", "title"], client.LastSearch.Fields);
         Assert.Equal("AND", client.LastSearch.DefaultOp);
         Assert.Equal(100, client.LastSearch.Rows);
+        Assert.Contains("Select Return Dataset", console.Output, StringComparison.Ordinal);
         Assert.Contains("returned 1 of 1", console.Output, StringComparison.Ordinal);
         Assert.Contains("A result", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures a query cannot be submitted until a configured return dataset is selected.</summary>
+    [Fact]
+    public async Task RunAsync_WithoutReturnDataset_DoesNotSubmitQuery()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        var client = createHealthyClient();
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        var flow = createFlow(console, client, validOptions());
+
+        await flow.RunAsync(CancellationToken.None);
+
+        Assert.Null(client.LastSearch);
+        Assert.DoesNotContain("Query [", console.Output, StringComparison.Ordinal);
 
         #endregion
     }
@@ -129,17 +163,24 @@ public sealed class InteractiveISearchFlowTests
             }
         ]);
 
-        // Select the dataset, view fields, return to the dataset menu, submit a query, then leave both menus.
+        // Select the dataset, view fields, return to the dataset menu, select a return dataset,
+        // submit a query, then leave both menus.
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushTextWithEnter("schema check");
         console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
@@ -151,6 +192,7 @@ public sealed class InteractiveISearchFlowTests
         Assert.Equal(1, client.FieldsCalls);
         Assert.Equal("live grants", client.LastFieldsDataset);
         Assert.Equal("live grants", client.LastSearch!.Dataset);
+        Assert.Equal(["grantNumber", "title"], client.LastSearch.Fields);
         Assert.Contains("name", console.Output, StringComparison.Ordinal);
         Assert.Contains("displayName", console.Output, StringComparison.Ordinal);
         Assert.Contains("defaultQueryField", console.Output, StringComparison.Ordinal);
@@ -195,12 +237,13 @@ public sealed class InteractiveISearchFlowTests
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.DownArrow);
-        console.Input.PushKey(ConsoleKey.DownArrow);
-        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Escape);
         var flow = createFlow(console, client, validOptions());
 
         await flow.RunAsync(CancellationToken.None);
@@ -231,12 +274,36 @@ public sealed class InteractiveISearchFlowTests
     }
 
     /**************************************************************/
+    /// <summary>Ensures malformed return-dataset configuration stops before health discovery.</summary>
+    [Fact]
+    public async Task RunAsync_MissingReturnDatasetConfiguration_DoesNotCallHealth()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        var client = new FakeClient();
+        var emptyCatalog = new SearchReturnTypeCatalog(new ConfigurationBuilder().Build());
+        var flow = createFlow(console, client, validOptions(), emptyCatalog);
+
+        await flow.RunAsync(CancellationToken.None);
+
+        Assert.Equal(0, client.HealthCalls);
+        Assert.Contains("return datasets", console.Output, StringComparison.OrdinalIgnoreCase);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Creates the flow with a deterministic fake API and console pager.</summary>
     /// <param name="console">The test console.</param>
     /// <param name="client">The fake API client.</param>
     /// <param name="options">The iSearch settings.</param>
     /// <returns>The flow under test.</returns>
-    private static InteractiveISearchFlow createFlow(TestConsole console, FakeClient client, ISearchOptions options)
+    private static InteractiveISearchFlow createFlow(
+        TestConsole console,
+        FakeClient client,
+        ISearchOptions options,
+        SearchReturnTypeCatalog? returnTypeCatalog = null)
     {
         #region implementation
 
@@ -244,6 +311,7 @@ public sealed class InteractiveISearchFlowTests
             console,
             Options.Create(options),
             new ISearchOptionsValidator(),
+            returnTypeCatalog ?? createReturnTypeCatalog(),
             client,
             new SearchResultsPager(console),
             new SearchFieldsPager(console));
@@ -276,6 +344,25 @@ public sealed class InteractiveISearchFlowTests
         ContactEmail = "operator@example.org",
         MinimumRequestIntervalMilliseconds = 0
     };
+
+    /**************************************************************/
+    /// <summary>Creates the configured return dataset used by interactive flow tests.</summary>
+    /// <returns>A catalog containing deterministic synthetic result fields.</returns>
+    private static SearchReturnTypeCatalog createReturnTypeCatalog()
+    {
+        #region implementation
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["iSearchReturnTypes:Grants:DefaultFields:0"] = "grantNumber",
+                ["iSearchReturnTypes:Grants:DefaultFields:1"] = "title"
+            })
+            .Build();
+        return new SearchReturnTypeCatalog(configuration);
+
+        #endregion
+    }
 
     /**************************************************************/
     /// <summary>Creates a healthy fake client with one live dataset.</summary>

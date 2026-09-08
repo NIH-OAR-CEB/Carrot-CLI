@@ -141,19 +141,23 @@ internal sealed class ISearchApiClient : IISearchApiClient
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.Dataset)
             || string.IsNullOrWhiteSpace(request.Query)
+            || request.Fields is null
+            || request.Fields.Count == 0
+            || request.Fields.Any(string.IsNullOrWhiteSpace)
             || !string.Equals(request.DefaultOp, "AND", StringComparison.Ordinal)
             || request.Rows is < 1 or > MaximumRows)
         {
             return Task.FromResult(failure<SearchResponse>(
                 "isearch.request.invalid",
-                "The iSearch request must contain a dataset, a query, defaultOp AND, and 1-100 rows."));
+                "The iSearch request must contain a dataset, a query, at least one result field, defaultOp AND, and 1-100 rows."));
         }
 
         // The live dataset-scoped GET operation currently succeeds for grants while the body-based POST operation returns HTTP 500.
         var requestUri = $"search/{Uri.EscapeDataString(request.Dataset)}"
             + $"?q={Uri.EscapeDataString(request.Query)}"
             + $"&defaultOp={Uri.EscapeDataString(request.DefaultOp)}"
-            + $"&rows={request.Rows}";
+            + $"&rows={request.Rows}"
+            + $"&fl={Uri.EscapeDataString(string.Join(',', request.Fields))}";
 
         return sendAsync(
             "search",

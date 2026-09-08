@@ -25,6 +25,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     private readonly IAnsiConsole _console;
     private readonly ISearchOptions _options;
     private readonly ISearchOptionsValidator _optionsValidator;
+    private readonly SearchReturnTypeCatalog _returnTypeCatalog;
     private readonly IISearchApiClient _client;
     private readonly ISearchResultsPager _resultsPager;
     private readonly ISearchFieldsPager _fieldsPager;
@@ -34,6 +35,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     /// <param name="console">The interactive console.</param>
     /// <param name="options">The optional iSearch configuration.</param>
     /// <param name="optionsValidator">The feature-local configuration validator.</param>
+    /// <param name="returnTypeCatalog">The validated configured return-dataset catalog.</param>
     /// <param name="client">The authenticated iSearch API boundary.</param>
     /// <param name="resultsPager">The bounded generic-record renderer.</param>
     /// <param name="fieldsPager">The bounded field-metadata renderer.</param>
@@ -41,6 +43,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         IAnsiConsole console,
         IOptions<ISearchOptions> options,
         ISearchOptionsValidator optionsValidator,
+        SearchReturnTypeCatalog returnTypeCatalog,
         IISearchApiClient client,
         ISearchResultsPager resultsPager,
         ISearchFieldsPager fieldsPager)
@@ -50,12 +53,14 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         ArgumentNullException.ThrowIfNull(console);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(optionsValidator);
+        ArgumentNullException.ThrowIfNull(returnTypeCatalog);
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(resultsPager);
         ArgumentNullException.ThrowIfNull(fieldsPager);
         _console = console;
         _options = options.Value;
         _optionsValidator = optionsValidator;
+        _returnTypeCatalog = returnTypeCatalog;
         _client = client;
         _resultsPager = resultsPager;
         _fieldsPager = fieldsPager;
@@ -70,6 +75,13 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         #region implementation
+
+        var returnTypesResult = _returnTypeCatalog.GetDefinitions();
+        if (returnTypesResult.Status == OperationStatus.Failure)
+        {
+            writeMessages(returnTypesResult.Messages);
+            return;
+        }
 
         // Validate locally before health so an absent key cannot result in any authenticated request.
         var configurationResult = _optionsValidator.Validate(_options);
@@ -111,28 +123,40 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             return;
         }
 
-        await runDatasetMenuAsync(datasetsResult.Value, cancellationToken).ConfigureAwait(false);
+        await runDatasetMenuAsync(
+            datasetsResult.Value,
+            returnTypesResult.Value!,
+            cancellationToken).ConfigureAwait(false);
 
         #endregion
     }
 
     /**************************************************************/
-    /// <summary>Retains the selected dataset while offering selection, query, and back actions.</summary>
+    /// <summary>Retains the selected database and return dataset while offering iSearch actions.</summary>
     /// <param name="datasets">The exact live dataset names returned by iSearch.</param>
+    /// <param name="returnTypes">The validated configured return datasets.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
-    private async Task runDatasetMenuAsync(IReadOnlyList<string> datasets, CancellationToken cancellationToken)
+    private async Task runDatasetMenuAsync(
+        IReadOnlyList<string> datasets,
+        IReadOnlyList<SearchReturnTypeDefinition> returnTypes,
+        CancellationToken cancellationToken)
     {
         #region implementation
 
         string? selectedDatabase = null;
+        SearchReturnTypeDefinition? selectedReturnType = null;
         while (true)
         {
-            // Keep the selected database in this visit so returning from a query does not force reselection.
+            // Keep both selections in this visit so returning from a query does not force reselection.
             var choices = new List<DatasetChoice> { DatasetChoice.SelectDatabase };
             if (selectedDatabase is not null)
             {
+                choices.Add(DatasetChoice.SelectReturnDataset);
                 choices.Add(DatasetChoice.ViewFields);
-                choices.Add(DatasetChoice.SubmitQuery);
+                if (selectedReturnType is not null)
+                {
+                    choices.Add(DatasetChoice.SubmitQuery);
+                }
             }
 
             choices.Add(DatasetChoice.Back);
@@ -144,6 +168,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                 .UseConverter(choice => choice switch
                 {
                     DatasetChoice.SelectDatabase => "Select Database",
+                    DatasetChoice.SelectReturnDataset => "Select Return Dataset",
                     DatasetChoice.ViewFields => "View Fields",
                     DatasetChoice.SubmitQuery => "Submit Query",
                     DatasetChoice.Back => "Back to Main Menu",
@@ -157,10 +182,26 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             switch (selected)
             {
                 case DatasetChoice.SelectDatabase:
+                    var previousDatabase = selectedDatabase;
                     selectedDatabase = await selectDatabaseAsync(
                         datasets,
                         selectedDatabase,
                         cancellationToken).ConfigureAwait(false);
+                    if (!string.Equals(previousDatabase, selectedDatabase, StringComparison.Ordinal))
+                    {
+                        selectedReturnType = null;
+                    }
+
+                    break;
+                case DatasetChoice.SelectReturnDataset:
+                    if (selectedDatabase is not null)
+                    {
+                        selectedReturnType = await selectReturnDatasetAsync(
+                            returnTypes,
+                            selectedReturnType,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
                     break;
                 case DatasetChoice.ViewFields:
                     if (selectedDatabase is not null)
@@ -170,9 +211,12 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
 
                     break;
                 case DatasetChoice.SubmitQuery:
-                    if (selectedDatabase is not null)
+                    if (selectedDatabase is not null && selectedReturnType is not null)
                     {
-                        await submitQueryAsync(selectedDatabase, cancellationToken).ConfigureAwait(false);
+                        await submitQueryAsync(
+                            selectedDatabase,
+                            selectedReturnType,
+                            cancellationToken).ConfigureAwait(false);
                     }
 
                     break;
@@ -182,6 +226,39 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                     throw new InvalidOperationException($"Unsupported iSearch action: {selected}");
             }
         }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Prompts from configured return datasets and preserves the prior choice on Escape.</summary>
+    /// <param name="returnTypes">The validated return datasets loaded from configuration.</param>
+    /// <param name="currentReturnType">The currently selected return dataset, if any.</param>
+    /// <param name="cancellationToken">The token signaling console cancellation.</param>
+    /// <returns>The chosen return dataset, or the prior choice when Escape is pressed.</returns>
+    private async Task<SearchReturnTypeDefinition?> selectReturnDatasetAsync(
+        IReadOnlyList<SearchReturnTypeDefinition> returnTypes,
+        SearchReturnTypeDefinition? currentReturnType,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        var selected = await new SelectionPrompt<string>()
+            .Title("[bold orange1]iSearch Return Datasets[/]")
+            .HighlightStyle(new Style(Color.Black, Color.Orange1))
+            .AddChoices(returnTypes.Select(returnType => returnType.Name))
+            .AddCancelResult(string.Empty)
+            .ShowAsync(_console, cancellationToken)
+            .ConfigureAwait(false);
+        if (string.IsNullOrEmpty(selected))
+        {
+            return currentReturnType;
+        }
+
+        var selectedReturnType = returnTypes.Single(returnType =>
+            string.Equals(returnType.Name, selected, StringComparison.Ordinal));
+        _console.WriteLine($"Selected iSearch return dataset: {selectedReturnType.Name}");
+        return selectedReturnType;
 
         #endregion
     }
@@ -233,10 +310,14 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     }
 
     /**************************************************************/
-    /// <summary>Validates and submits one query for the retained dataset.</summary>
+    /// <summary>Validates and submits one query for the retained database and return dataset.</summary>
     /// <param name="database">The exact selected dataset name.</param>
+    /// <param name="returnType">The configured return dataset whose fields will be requested.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
-    private async Task submitQueryAsync(string database, CancellationToken cancellationToken)
+    private async Task submitQueryAsync(
+        string database,
+        SearchReturnTypeDefinition returnType,
+        CancellationToken cancellationToken)
     {
         #region implementation
 
@@ -253,6 +334,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         {
             Dataset = database,
             Query = query.Trim(),
+            Fields = returnType.DefaultFields,
             DefaultOp = "AND",
             Rows = 100
         }, cancellationToken).ConfigureAwait(false);
@@ -290,6 +372,10 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         /**************************************************************/
         /// <summary>Opens the live dataset picker.</summary>
         SelectDatabase,
+
+        /**************************************************************/
+        /// <summary>Opens the configured return-dataset picker.</summary>
+        SelectReturnDataset,
 
         /**************************************************************/
         /// <summary>Displays field metadata for the retained dataset.</summary>

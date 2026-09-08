@@ -4,7 +4,7 @@ namespace Carrot.Cli.ISearch.Contracts;
 /// <summary>Represents the bounded query submitted to iSearch search.</summary>
 /// <remarks>
 /// The API boundary requires a nonempty dataset and query, the exact <c>AND</c> default operator,
-/// and a row count between 1 and 100 before it creates a request.
+/// at least one result field, and a row count between 1 and 100 before it creates a request.
 /// </remarks>
 /// <seealso cref="IISearchApiClient"/>
 internal sealed class SearchRequest
@@ -20,6 +20,11 @@ internal sealed class SearchRequest
     /// <summary>Gets or sets the free-text or Lucene query submitted to iSearch.</summary>
     /// <remarks>The first interactive phase does not qualify or persist the query text.</remarks>
     public string Query { get; set; } = string.Empty;
+
+    /**************************************************************/
+    /// <summary>Gets or sets the ordered iSearch result fields selected by the operator.</summary>
+    /// <remarks>The values are serialized as the comma-separated <c>fl</c> query parameter.</remarks>
+    public IReadOnlyList<string> Fields { get; set; } = Array.Empty<string>();
 
     /**************************************************************/
     /// <summary>Gets or sets the default Boolean operator used by the search service.</summary>

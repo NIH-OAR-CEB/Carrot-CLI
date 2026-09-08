@@ -74,6 +74,7 @@ public sealed class ISearchApiClientTests
         {
             Dataset = "live-dataset",
             Query = "vaccine \"phase 1\"",
+            Fields = ["title", "abstract"],
             DefaultOp = "AND",
             Rows = 100
         }, CancellationToken.None);
@@ -81,11 +82,35 @@ public sealed class ISearchApiClientTests
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Get, request.Method);
         Assert.Equal(
-            "https://isearch.test/api/search/live-dataset?q=vaccine%20%22phase%201%22&defaultOp=AND&rows=100",
+            "https://isearch.test/api/search/live-dataset?q=vaccine%20%22phase%201%22&defaultOp=AND&rows=100&fl=title%2Cabstract",
             request.RequestUri!.AbsoluteUri);
         Assert.Empty(handler.RequestBodies);
         Assert.Equal(1, result.Value!.ReturnedCount);
         Assert.Equal(7, result.Value.Results[0].GetProperty("id").GetInt32());
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures a search with no configured result fields is rejected before HTTP.</summary>
+    [Fact]
+    public async Task SearchAsync_EmptyFields_DoesNotSendRequest()
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.SearchAsync(new SearchRequest
+        {
+            Dataset = "live-dataset",
+            Query = "vaccine",
+            DefaultOp = "AND",
+            Rows = 100
+        }, CancellationToken.None);
+
+        Assert.Empty(handler.Requests);
+        Assert.Equal("isearch.request.invalid", result.Messages[0].Code);
 
         #endregion
     }
@@ -218,6 +243,7 @@ public sealed class ISearchApiClientTests
         {
             Dataset = "live-dataset",
             Query = "vaccine",
+            Fields = ["title"],
             DefaultOp = "AND",
             Rows = 1
         }, CancellationToken.None);

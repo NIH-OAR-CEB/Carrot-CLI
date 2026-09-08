@@ -55,6 +55,7 @@ internal static class ServiceRegistration
 
         // iSearch credentials remain optional at startup; the feature validates them on entry.
         services.AddSingleton<ISearchOptionsValidator>();
+        services.AddSingleton<SearchReturnTypeCatalog>();
 
         services.AddSingleton<DocumentFormatCatalog>();
         services.AddSingleton<InputPathNormalizer>();
