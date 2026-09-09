@@ -76,7 +76,9 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     {
         #region implementation
 
-        var returnTypesResult = _returnTypeCatalog.GetDefinitions();
+        var returnTypesResult = _returnTypeCatalog.GetConfiguration();
+        // Configuration is evaluated before any service call so a malformed return-dataset
+        // definition is reported as a local, actionable problem instead of becoming a remote request error.
         if (returnTypesResult.Status == OperationStatus.Failure)
         {
             writeMessages(returnTypesResult.Messages);
@@ -85,6 +87,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
 
         // Validate locally before health so an absent key cannot result in any authenticated request.
         var configurationResult = _optionsValidator.Validate(_options);
+        // Credentials and safety limits are checked before health because no authenticated network
+        // operation is useful when the local options cannot support a safe iSearch request.
         if (configurationResult.Status == OperationStatus.Failure)
         {
             writeMessages(configurationResult.Messages);
@@ -93,6 +97,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
 
         _console.MarkupLine("[orange1]Checking iSearch availability...[/]");
         var healthResult = await _client.GetHealthAsync(cancellationToken).ConfigureAwait(false);
+        // A failed health operation already contains the user-facing diagnostic; stop this visit
+        // here so the menu never presents choices that cannot currently work.
         if (healthResult.Status == OperationStatus.Failure)
         {
             writeMessages(healthResult.Messages);
@@ -103,6 +109,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         _console.WriteLine(JsonSerializer.Serialize(healthResult.Value!.Payload, new JsonSerializerOptions { WriteIndented = true }));
 
         // Dataset choices are meaningful only after an explicitly positive service-health response.
+        // Treat every other status, including a missing status value, as unavailable rather than
+        // guessing that discovery is safe to attempt.
         if (!string.Equals(healthResult.Value.Status, "UP", StringComparison.OrdinalIgnoreCase))
         {
             _console.MarkupLine("[yellow]iSearch is not available; dataset discovery was not attempted.[/]");
@@ -111,12 +119,16 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
 
         _console.MarkupLine("[orange1]Discovering iSearch datasets...[/]");
         var datasetsResult = await _client.GetDatasetsAsync(cancellationToken).ConfigureAwait(false);
+        // Discovery errors are terminal for this visit because the interactive menu must use the
+        // exact live dataset names returned by iSearch.
         if (datasetsResult.Status == OperationStatus.Failure)
         {
             writeMessages(datasetsResult.Messages);
             return;
         }
 
+        // An empty successful response is different from a transport failure, but it still leaves
+        // the user with no valid dataset to select, so there is nothing useful to prompt for.
         if (datasetsResult.Value!.Count == 0)
         {
             _console.WriteLine("iSearch returned no datasets.");
@@ -134,25 +146,30 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     /**************************************************************/
     /// <summary>Retains the selected database and return dataset while offering iSearch actions.</summary>
     /// <param name="datasets">The exact live dataset names returned by iSearch.</param>
-    /// <param name="returnTypes">The validated configured return datasets.</param>
+    /// <param name="configuration">The validated return types and shared cardinality report names.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
     private async Task runDatasetMenuAsync(
         IReadOnlyList<string> datasets,
-        IReadOnlyList<SearchReturnTypeDefinition> returnTypes,
+        SearchReturnTypeConfiguration configuration,
         CancellationToken cancellationToken)
     {
         #region implementation
 
         string? selectedDatabase = null;
         SearchReturnTypeDefinition? selectedReturnType = null;
+        // The loop represents one complete menu visit. Each action returns here when it is done,
+        // allowing the user to reuse the current database and return type without restarting the flow.
         while (true)
         {
             // Keep both selections in this visit so returning from a query does not force reselection.
             var choices = new List<DatasetChoice> { DatasetChoice.SelectDatabase };
+            // Return-dataset, field, and query actions are database-scoped. Hiding them until a
+            // database exists prevents invalid states from reaching the client.
             if (selectedDatabase is not null)
             {
                 choices.Add(DatasetChoice.SelectReturnDataset);
                 choices.Add(DatasetChoice.ViewFields);
+                // A query is enabled only after both parts of its request context have been chosen.
                 if (selectedReturnType is not null)
                 {
                     choices.Add(DatasetChoice.SubmitQuery);
@@ -160,6 +177,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             }
 
             choices.Add(DatasetChoice.Back);
+            // The title communicates whether the next choice establishes context or operates
+            // within the database already retained by this menu visit.
             var selected = await new SelectionPrompt<DatasetChoice>()
                 .Title(selectedDatabase is null
                     ? "[bold orange1]iSearch[/] — Select a dataset"
@@ -167,6 +186,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                 .HighlightStyle(new Style(Color.Black, Color.Orange1))
                 .UseConverter(choice => choice switch
                 {
+                    // Keep display labels human-readable while retaining enum values for dispatch.
                     DatasetChoice.SelectDatabase => "Select Database",
                     DatasetChoice.SelectReturnDataset => "Select Return Dataset",
                     DatasetChoice.ViewFields => "View Fields",
@@ -182,6 +202,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             switch (selected)
             {
                 case DatasetChoice.SelectDatabase:
+                    // Changing databases invalidates the prior return-type selection because that
+                    // selection is configuration for the request, not a property of the service database.
                     var previousDatabase = selectedDatabase;
                     selectedDatabase = await selectDatabaseAsync(
                         datasets,
@@ -194,16 +216,19 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
 
                     break;
                 case DatasetChoice.SelectReturnDataset:
+                    // The menu construction above normally makes this guard redundant. Keeping it
+                    // here makes the dispatch safe if the choices are changed independently later.
                     if (selectedDatabase is not null)
                     {
                         selectedReturnType = await selectReturnDatasetAsync(
-                            returnTypes,
+                            configuration.ReturnTypes,
                             selectedReturnType,
                             cancellationToken).ConfigureAwait(false);
                     }
 
                     break;
                 case DatasetChoice.ViewFields:
+                    // Field discovery requires the exact live database selected by the operator.
                     if (selectedDatabase is not null)
                     {
                         await viewFieldsAsync(selectedDatabase, cancellationToken).ConfigureAwait(false);
@@ -211,18 +236,24 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
 
                     break;
                 case DatasetChoice.SubmitQuery:
+                    // Submission is valid only with a database and configured result fields. This
+                    // guard protects the API boundary even if a new caller supplies this action.
                     if (selectedDatabase is not null && selectedReturnType is not null)
                     {
                         await submitQueryAsync(
                             selectedDatabase,
                             selectedReturnType,
+                            configuration.Cardinality,
                             cancellationToken).ConfigureAwait(false);
                     }
 
                     break;
                 case DatasetChoice.Back:
+                    // Back is the explicit and Escape/cancel-generated exit from this nested menu.
                     return;
                 default:
+                    // An enum value not handled above indicates a programming/configuration defect,
+                    // so silently returning would hide a broken menu contract.
                     throw new InvalidOperationException($"Unsupported iSearch action: {selected}");
             }
         }
@@ -252,9 +283,15 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             .ConfigureAwait(false);
         if (string.IsNullOrEmpty(selected))
         {
+            // Escape cancels only this picker. Preserve the existing selection so cancellation does
+            // not unexpectedly erase valid request context.
             return currentReturnType;
         }
 
+        // The picker returns a configured name; resolve it back to the full definition so the query
+        // receives its complete, validated field list rather than only the display text.
+        // The catalog is already validated, so an exact ordinal lookup maps the visible name to
+        // one and only one immutable definition.
         var selectedReturnType = returnTypes.Single(returnType =>
             string.Equals(returnType.Name, selected, StringComparison.Ordinal));
         _console.WriteLine($"Selected iSearch return dataset: {selectedReturnType.Name}");
@@ -272,6 +309,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         #region implementation
 
         var result = await _client.GetFieldsAsync(database, cancellationToken).ConfigureAwait(false);
+        // Field retrieval failures are displayed at this level and then return the user to the
+        // retained database menu; they do not invalidate the database selection itself.
         if (result.Status == OperationStatus.Failure)
         {
             writeMessages(result.Messages);
@@ -304,6 +343,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             .AddCancelResult(string.Empty)
             .ShowAsync(_console, cancellationToken)
             .ConfigureAwait(false);
+        // Escape cancels only database replacement. Returning the existing name keeps the rest of
+        // the menu state coherent and avoids forcing a new selection after a harmless cancellation.
         return string.IsNullOrEmpty(selected) ? currentDatabase : selected;
 
         #endregion
@@ -313,14 +354,18 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     /// <summary>Validates and submits one query for the retained database and return dataset.</summary>
     /// <param name="database">The exact selected dataset name.</param>
     /// <param name="returnType">The configured return dataset whose fields will be requested.</param>
+    /// <param name="cardinalityFieldNames">The configured labels for common result-cardinality values.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
     private async Task submitQueryAsync(
         string database,
         SearchReturnTypeDefinition returnType,
+        SearchCardinalityFieldNames cardinalityFieldNames,
         CancellationToken cancellationToken)
     {
         #region implementation
 
+        // Validate at the prompt so an empty query never reaches the client or consumes a request
+        // slot; the user can correct it immediately in the same interaction.
         var query = await new TextPrompt<string>("Query [grey](free text or Lucene syntax)[/]:")
             .PromptStyle("yellow")
             .Validate(value => string.IsNullOrWhiteSpace(value)
@@ -339,13 +384,15 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             Rows = 100
         }, cancellationToken).ConfigureAwait(false);
 
+        // Search failures are rendered as operation messages and return to the menu, allowing the
+        // operator to adjust the query without losing the selected database or return dataset.
         if (result.Status == OperationStatus.Failure)
         {
             writeMessages(result.Messages);
             return;
         }
 
-        await _resultsPager.ShowAsync(result.Value!, cancellationToken).ConfigureAwait(false);
+        await _resultsPager.ShowAsync(result.Value!, cardinalityFieldNames, cancellationToken).ConfigureAwait(false);
 
         #endregion
     }
@@ -359,6 +406,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
 
         foreach (var message in messages)
         {
+            // Write messages as literal lines so service-provided text cannot be interpreted as
+            // Spectre markup while the user is diagnosing a failed operation.
             _console.WriteLine($"iSearch: {message.Message}");
         }
 

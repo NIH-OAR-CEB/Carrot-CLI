@@ -66,8 +66,13 @@ public sealed class InteractiveISearchFlowTests
             Datasets = OperationResult<IReadOnlyList<string>>.Success(["live-grants"]),
             Search = OperationResult<SearchResponse>.Success(new SearchResponse
             {
-                ReturnedCount = 1,
-                TotalCount = 1,
+                Cardinality = new SearchCardinality
+                {
+                    CurrentResults = 1,
+                    TotalResults = 1,
+                    PageNumber = 1,
+                    TotalPages = 1
+                },
                 Results = [JsonSerializer.SerializeToElement(new { title = "A result" })]
             })
         };
@@ -99,7 +104,8 @@ public sealed class InteractiveISearchFlowTests
         Assert.Equal("AND", client.LastSearch.DefaultOp);
         Assert.Equal(100, client.LastSearch.Rows);
         Assert.Contains("Select Return Dataset", console.Output, StringComparison.Ordinal);
-        Assert.Contains("returned 1 of 1", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Summaries", console.Output, StringComparison.Ordinal);
+        Assert.Contains("returnedCount: 1", console.Output, StringComparison.Ordinal);
         Assert.Contains("A result", console.Output, StringComparison.Ordinal);
 
         #endregion
@@ -355,8 +361,13 @@ public sealed class InteractiveISearchFlowTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["iSearchReturnTypes:Grants:DefaultFields:0"] = "grantNumber",
-                ["iSearchReturnTypes:Grants:DefaultFields:1"] = "title"
+                ["iSearchReturnTypes:Results:Cardinality:TotalResultsFieldName"] = "totalCount",
+                ["iSearchReturnTypes:Results:Cardinality:CurrentResultsFieldName"] = "returnedCount",
+                ["iSearchReturnTypes:Results:Cardinality:PageNumberFieldName"] = "pageNumber",
+                ["iSearchReturnTypes:Results:Cardinality:TotalPagesFieldName"] = "totalPages",
+                ["iSearchReturnTypes:Results:Grants:DefaultFields:0"] = "grantNumber",
+                ["iSearchReturnTypes:Results:Grants:DefaultFields:1"] = "title",
+                ["iSearchReturnTypes:Results:Summaries:DefaultFields:0"] = "id"
             })
             .Build();
         return new SearchReturnTypeCatalog(configuration);
@@ -377,8 +388,13 @@ public sealed class InteractiveISearchFlowTests
         Datasets = OperationResult<IReadOnlyList<string>>.Success(["live grants"]),
         Search = OperationResult<SearchResponse>.Success(new SearchResponse
         {
-            ReturnedCount = 0,
-            TotalCount = 0,
+            Cardinality = new SearchCardinality
+            {
+                CurrentResults = 0,
+                TotalResults = 0,
+                PageNumber = 0,
+                TotalPages = 0
+            },
             Results = []
         })
     };

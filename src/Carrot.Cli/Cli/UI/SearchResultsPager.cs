@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Carrot.Cli.Configuration;
 using Carrot.Cli.ISearch.Contracts;
 using Spectre.Console;
 
@@ -53,15 +54,20 @@ internal sealed class SearchResultsPager : ISearchResultsPager
     }
 
     /**************************************************************/
-    /// <summary>Displays the response records with bounded forward/back navigation.</summary>
+    /// <summary>Displays configured cardinality and response records with bounded terminal navigation.</summary>
     /// <param name="response">The validated response to render.</param>
+    /// <param name="cardinalityFieldNames">The configured labels for the common cardinality values.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
     /// <returns>A task representing results navigation.</returns>
-    public async Task ShowAsync(SearchResponse response, CancellationToken cancellationToken)
+    public async Task ShowAsync(
+        SearchResponse response,
+        SearchCardinalityFieldNames cardinalityFieldNames,
+        CancellationToken cancellationToken)
     {
         #region implementation
 
         ArgumentNullException.ThrowIfNull(response);
+        ArgumentNullException.ThrowIfNull(cardinalityFieldNames);
 
         // Reserve prompt rows so records do not scroll the navigation controls off the terminal.
         var pageSize = Math.Clamp(_console.Profile.Height - ReservedTerminalRows, MinimumPageSize, MaximumPageSize);
@@ -76,9 +82,21 @@ internal sealed class SearchResultsPager : ISearchResultsPager
 
         var pageCount = Math.Max(1, (lines.Count + pageSize - 1) / pageSize);
         var pageIndex = 0;
+
+        // Keep rendering and prompting in one loop so every navigation choice redraws the same
+        // cardinality header and the corresponding bounded slice of records.
         while (true)
         {
-            _console.WriteLine($"iSearch results: returned {response.ReturnedCount} of {response.TotalCount} total.");
+            var cardinality = response.Cardinality;
+            _console.WriteLine(
+                $"{cardinalityFieldNames.TotalResultsFieldName}: {cardinality.TotalResults} | "
+                + $"{cardinalityFieldNames.CurrentResultsFieldName}: {cardinality.CurrentResults} | "
+                + $"{cardinalityFieldNames.PageNumberFieldName}: {cardinality.PageNumber} of "
+                + $"{cardinalityFieldNames.TotalPagesFieldName}: {cardinality.TotalPages}");
+
+            // Zero results still produce a cardinality header, but there are no record lines to
+            // slice. The explicit message makes an empty successful walk distinguishable from a
+            // missing or malformed response.
             if (response.Results.Count == 0)
             {
                 _console.WriteLine("No records matched the query.");
@@ -92,11 +110,15 @@ internal sealed class SearchResultsPager : ISearchResultsPager
             }
 
             var choices = new List<PageChoice>();
+
+            // Only offer forward navigation while another display page exists. Keeping unavailable
+            // actions out of the prompt prevents pageIndex from exceeding the rendered line range.
             if (pageIndex + 1 < pageCount)
             {
                 choices.Add(PageChoice.Next);
             }
 
+            // The previous action appears only after moving away from the first display page.
             if (pageIndex > 0)
             {
                 choices.Add(PageChoice.Previous);
@@ -108,6 +130,8 @@ internal sealed class SearchResultsPager : ISearchResultsPager
                 .HighlightStyle(new Style(Color.Black, Color.Orange1))
                 .UseConverter(choice => choice switch
                 {
+                    // Translate internal navigation values into labels that explain the action to a
+                    // terminal user; the enum remains the value used by the dispatcher below.
                     PageChoice.Next => "Next Page",
                     PageChoice.Previous => "Previous Page",
                     PageChoice.Back => "Back to iSearch",
@@ -121,14 +145,23 @@ internal sealed class SearchResultsPager : ISearchResultsPager
             switch (selected)
             {
                 case PageChoice.Next:
+                    // The choices list guarantees a next page exists, so moving forward cannot
+                    // address a page beyond the materialized display lines.
                     pageIndex++;
                     break;
+
                 case PageChoice.Previous:
+                    // The choices list guarantees pageIndex is positive before moving backward.
                     pageIndex--;
                     break;
+
                 case PageChoice.Back:
+                    // Returning stops this pager and hands control back to the dataset menu.
                     return;
+
                 default:
+                    // An unrecognized action would violate the prompt/dispatcher contract and
+                    // should fail loudly during development rather than silently doing nothing.
                     throw new InvalidOperationException($"Unsupported iSearch results action: {selected}");
             }
         }

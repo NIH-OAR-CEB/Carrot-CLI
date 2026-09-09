@@ -6,13 +6,13 @@ using Xunit;
 namespace Carrot.Cli.Tests.Configuration;
 
 /**************************************************************/
-/// <summary>Verifies binding, ordering, and safe validation of iSearch return datasets.</summary>
+/// <summary>Verifies binding, ordering, and safe validation of iSearch result configuration.</summary>
 public sealed class SearchReturnTypeCatalogTests
 {
     #region implementation
 
     /**************************************************************/
-    /// <summary>Ensures configured group and field order are retained for menu and request use.</summary>
+    /// <summary>Ensures shared cardinality names and return-type field order are retained for reporting and requests.</summary>
     [Fact]
     public void GetDefinitions_ValidConfiguration_PreservesOrderAndNames()
     {
@@ -20,16 +20,24 @@ public sealed class SearchReturnTypeCatalogTests
 
         var catalog = new SearchReturnTypeCatalog(createConfiguration(new Dictionary<string, string?>
         {
-            ["iSearchReturnTypes:Grants:DefaultFields:0"] = "grantNumber",
-            ["iSearchReturnTypes:Grants:DefaultFields:1"] = "title",
-            ["iSearchReturnTypes:Summaries:DefaultFields:0"] = "id"
+            ["iSearchReturnTypes:Results:Cardinality:TotalResultsFieldName"] = "totalCount",
+            ["iSearchReturnTypes:Results:Cardinality:CurrentResultsFieldName"] = "returnedCount",
+            ["iSearchReturnTypes:Results:Cardinality:PageNumberFieldName"] = "pageNumber",
+            ["iSearchReturnTypes:Results:Cardinality:TotalPagesFieldName"] = "totalPages",
+            ["iSearchReturnTypes:Results:Grants:DefaultFields:0"] = "grantNumber",
+            ["iSearchReturnTypes:Results:Grants:DefaultFields:1"] = "title",
+            ["iSearchReturnTypes:Results:Summaries:DefaultFields:0"] = "id"
         }));
 
-        var result = catalog.GetDefinitions();
+        var result = catalog.GetConfiguration();
 
         Assert.Equal(OperationStatus.Success, result.Status);
+        Assert.Equal("totalCount", result.Value!.Cardinality.TotalResultsFieldName);
+        Assert.Equal("returnedCount", result.Value.Cardinality.CurrentResultsFieldName);
+        Assert.Equal("pageNumber", result.Value.Cardinality.PageNumberFieldName);
+        Assert.Equal("totalPages", result.Value.Cardinality.TotalPagesFieldName);
         Assert.Collection(
-            result.Value!,
+            result.Value.ReturnTypes,
             grants =>
             {
                 Assert.Equal("Grants", grants.Name);
@@ -56,7 +64,7 @@ public sealed class SearchReturnTypeCatalogTests
 
         var catalog = new SearchReturnTypeCatalog(createConfiguration(values));
 
-        var result = catalog.GetDefinitions();
+        var result = catalog.GetConfiguration();
 
         Assert.Equal(OperationStatus.Failure, result.Status);
         Assert.Contains(result.Messages, message => message.Code == expectedCode);
@@ -73,22 +81,53 @@ public sealed class SearchReturnTypeCatalogTests
         yield return [
             new Dictionary<string, string?>
             {
-                ["iSearchReturnTypes:Grants:DefaultFields:0"] = " "
+                ["iSearchReturnTypes:Results:Cardinality:TotalResultsFieldName"] = "totalCount",
+                ["iSearchReturnTypes:Results:Cardinality:CurrentResultsFieldName"] = "returnedCount",
+                ["iSearchReturnTypes:Results:Cardinality:PageNumberFieldName"] = "pageNumber",
+                ["iSearchReturnTypes:Results:Cardinality:TotalPagesFieldName"] = "totalPages",
+                ["iSearchReturnTypes:Results:Grants:DefaultFields:0"] = " "
             },
             "isearch.return-type.field-empty"];
         yield return [
             new Dictionary<string, string?>
             {
-                ["iSearchReturnTypes:Grants:DefaultFields:0"] = "title",
-                ["iSearchReturnTypes:Grants:DefaultFields:1"] = "title"
+                ["iSearchReturnTypes:Results:Cardinality:TotalResultsFieldName"] = "totalCount",
+                ["iSearchReturnTypes:Results:Cardinality:CurrentResultsFieldName"] = "returnedCount",
+                ["iSearchReturnTypes:Results:Cardinality:PageNumberFieldName"] = "pageNumber",
+                ["iSearchReturnTypes:Results:Cardinality:TotalPagesFieldName"] = "totalPages",
+                ["iSearchReturnTypes:Results:Grants:DefaultFields:0"] = "title",
+                ["iSearchReturnTypes:Results:Grants:DefaultFields:1"] = "title"
             },
             "isearch.return-type.field-duplicate"];
         yield return [
             new Dictionary<string, string?>
             {
-                ["iSearchReturnTypes:Grants:OtherSetting"] = "ignored"
+                ["iSearchReturnTypes:Results:Cardinality:TotalResultsFieldName"] = "totalCount",
+                ["iSearchReturnTypes:Results:Cardinality:CurrentResultsFieldName"] = "returnedCount",
+                ["iSearchReturnTypes:Results:Cardinality:PageNumberFieldName"] = "pageNumber",
+                ["iSearchReturnTypes:Results:Cardinality:TotalPagesFieldName"] = "totalPages",
+                ["iSearchReturnTypes:Results:Grants:OtherSetting"] = "ignored"
             },
             "isearch.return-type.fields-missing"];
+        yield return [
+            new Dictionary<string, string?>
+            {
+                ["iSearchReturnTypes:Results:Cardinality:CurrentResultsFieldName"] = "returnedCount",
+                ["iSearchReturnTypes:Results:Cardinality:PageNumberFieldName"] = "pageNumber",
+                ["iSearchReturnTypes:Results:Cardinality:TotalPagesFieldName"] = "totalPages",
+                ["iSearchReturnTypes:Results:Grants:DefaultFields:0"] = "title"
+            },
+            "isearch.cardinality.field-name-missing"];
+        yield return [
+            new Dictionary<string, string?>
+            {
+                ["iSearchReturnTypes:Results:Cardinality:TotalResultsFieldName"] = "count",
+                ["iSearchReturnTypes:Results:Cardinality:CurrentResultsFieldName"] = "count",
+                ["iSearchReturnTypes:Results:Cardinality:PageNumberFieldName"] = "pageNumber",
+                ["iSearchReturnTypes:Results:Cardinality:TotalPagesFieldName"] = "totalPages",
+                ["iSearchReturnTypes:Results:Grants:DefaultFields:0"] = "title"
+            },
+            "isearch.cardinality.field-name-duplicate"];
     }
 
     /**************************************************************/

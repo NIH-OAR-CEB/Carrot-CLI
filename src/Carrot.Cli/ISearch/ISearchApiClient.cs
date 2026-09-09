@@ -110,6 +110,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
         if (string.IsNullOrWhiteSpace(dataset))
         {
+            // Reject the path parameter before authentication or HTTP work so callers receive a
+            // deterministic request error and the service never sees an incomplete endpoint.
             return Task.FromResult(failure<IReadOnlyList<SearchField>>(
                 "isearch.request.invalid",
                 "The iSearch fields request must contain a dataset."));
@@ -139,6 +141,9 @@ internal sealed class ISearchApiClient : IISearchApiClient
         #region implementation
 
         ArgumentNullException.ThrowIfNull(request);
+
+        // Validate the complete request contract locally. This keeps malformed dataset names,
+        // empty queries, unusable fields, unsupported operators, and unsafe row counts out of HTTP.
         if (string.IsNullOrWhiteSpace(request.Dataset)
             || string.IsNullOrWhiteSpace(request.Query)
             || request.Fields is null
@@ -164,7 +169,7 @@ internal sealed class ISearchApiClient : IISearchApiClient
             requestUri,
             HttpMethod.Get,
             contentFactory: null,
-            parseSearchAsync,
+            (response, cancellation) => parseSearchAsync(response, request.Rows, cancellation),
             cancellationToken);
 
         #endregion
@@ -193,17 +198,23 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
         // Keep the optional feature dormant when credentials are absent; no authenticated request is constructed on this path.
         var credentialResult = validateCredentials();
+
+        // Missing credentials disable only this operation. Returning the collected messages avoids
+        // constructing a request that could never authenticate and lets the caller display all gaps.
         if (credentialResult.Status == OperationStatus.Failure)
         {
             return OperationResult<TResponse>.Failure(credentialResult.Messages);
         }
 
         // Reject invalid safety settings locally so a malformed configuration cannot create an unbounded operation.
+        // Timeout is checked separately because its diagnostic identifies the setting most directly.
         if (_options.TimeoutSeconds <= 0)
         {
             return failure<TResponse>("isearch.configuration.timeout-invalid", "iSearch timeout must be greater than zero seconds.");
         }
 
+        // The remaining settings share one bounded-policy diagnostic because all of them constrain
+        // retry volume, pacing, or the amount of upstream data accepted into memory.
         if (_options.TransientRetryCount < 0
             || _options.MinimumRequestIntervalMilliseconds < 0
             || _options.MaximumResponseCharacters <= 0
@@ -219,6 +230,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
         // Each retry receives a fresh request because HttpRequestMessage and its content are single-use resources.
         for (var attempt = 0; attempt <= _options.TransientRetryCount; attempt++)
         {
+            // All expected failures below are classified here so a caller receives a safe operation
+            // result, while caller cancellation remains the one intentionally propagated exception.
             try
             {
                 await waitForRequestSlotAsync(operationToken).ConfigureAwait(false);
@@ -228,17 +241,21 @@ internal sealed class ISearchApiClient : IISearchApiClient
                     .ConfigureAwait(false);
 
                 // A redirect could move the authenticated cookie to a host outside the fixed iSearch service.
+                // Reject it before success/failure handling so no redirect response can be followed or retried.
                 if (isRedirect(response.StatusCode))
                 {
                     return failure<TResponse>("isearch.redirect", $"iSearch returned redirect status {(int)response.StatusCode}; redirects are disabled.");
                 }
 
+                // Successful responses are parsed immediately; parsing failures are handled by the
+                // JSON-specific catch below and are never mistaken for transport failures.
                 if (response.IsSuccessStatusCode)
                 {
                     return await parseResponseAsync(response, operationToken).ConfigureAwait(false);
                 }
 
                 // Retry only statuses that are explicitly safe to repeat without changing operator input.
+                // The attempt check leaves the final response available for a useful bounded error message.
                 if (isTransient(response.StatusCode) && attempt < _options.TransientRetryCount)
                 {
                     var retryDelay = getRetryDelay(response, attempt);
@@ -253,6 +270,9 @@ internal sealed class ISearchApiClient : IISearchApiClient
                 }
 
                 var responseBody = await readFailureBodyAsync(response, operationToken).ConfigureAwait(false);
+
+                // Include diagnostic text only when the server supplied non-whitespace content; this
+                // keeps ordinary status failures concise without losing useful service context.
                 var bodySuffix = string.IsNullOrWhiteSpace(responseBody)
                     ? string.Empty
                     : $" Response: {responseBody}";
@@ -262,14 +282,20 @@ internal sealed class ISearchApiClient : IISearchApiClient
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                // The caller owns this cancellation request, so preserve its standard cancellation
+                // semantics instead of converting an intentional stop into an operation failure.
                 throw;
             }
             catch (OperationCanceledException) when (timeoutSource.IsCancellationRequested)
             {
+                // This filter identifies cancellation caused by the client-owned timeout rather
+                // than by the caller, allowing the CLI to report a useful timeout diagnostic.
                 return failure<TResponse>("isearch.timeout", $"The iSearch {operation} operation exceeded its configured timeout.");
             }
             catch (HttpRequestException exception) when (attempt < _options.TransientRetryCount)
             {
+                // A transport failure has no HTTP status, but repeating it is still allowed while
+                // retry budget remains. The next loop iteration creates a fresh authenticated request.
                 _logger.LogWarning(
                     "iSearch {Operation} transport attempt {AttemptNumber} failed and will be retried: {Message}",
                     operation,
@@ -279,14 +305,19 @@ internal sealed class ISearchApiClient : IISearchApiClient
             }
             catch (HttpRequestException exception)
             {
+                // With no retry budget left, return the bounded transport diagnostic to the caller.
                 return failure<TResponse>("isearch.transport", $"Could not contact iSearch for {operation}: {exception.Message}");
             }
             catch (JsonException exception)
             {
+                // A syntactically or structurally invalid successful payload is not transient; a
+                // retry would repeat the same contract problem and obscure its cause.
                 return failure<TResponse>("isearch.response.malformed", $"iSearch returned malformed JSON for {operation}: {exception.Message}");
             }
         }
 
+        // Reaching this point means every configured attempt was consumed by a retryable transport
+        // path without producing a response that could be returned or parsed.
         return failure<TResponse>("isearch.transport", $"The iSearch {operation} operation exhausted all attempts.");
 
         #endregion
@@ -300,6 +331,9 @@ internal sealed class ISearchApiClient : IISearchApiClient
         #region implementation
 
         var messages = new List<OperationMessage>();
+
+        // Check each credential independently so an operator can correct all missing values in one
+        // edit rather than discovering them serially across repeated command runs.
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
             messages.Add(new OperationMessage
@@ -320,6 +354,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
             });
         }
 
+        // An empty message list is the only success state; any missing credential keeps the
+        // authenticated boundary closed.
         return messages.Count == 0
             ? OperationResult<bool>.Success(true)
             : OperationResult<bool>.Failure(messages);
@@ -341,10 +377,14 @@ internal sealed class ISearchApiClient : IISearchApiClient
             var last = Interlocked.Read(ref _lastRequestTimestamp);
 
             // Timestamp request start rather than completion so sequential starts remain predictably spaced.
+            // The first request has no prior timestamp and therefore proceeds without an artificial delay.
             if (last != 0 && _options.MinimumRequestIntervalMilliseconds > 0)
             {
                 var elapsed = Stopwatch.GetElapsedTime(last);
                 var remaining = TimeSpan.FromMilliseconds(_options.MinimumRequestIntervalMilliseconds) - elapsed;
+
+                // If request work already consumed the interval, no delay is needed; otherwise wait
+                // only for the unelapsed remainder and keep cancellation responsive.
                 if (remaining > TimeSpan.Zero)
                 {
                     await Task.Delay(remaining, cancellationToken).ConfigureAwait(false);
@@ -355,6 +395,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
         }
         finally
         {
+            // Release the gate on success, cancellation, or failure so one interrupted request
+            // cannot permanently block every later iSearch operation.
             _requestGate.Release();
         }
 
@@ -376,6 +418,9 @@ internal sealed class ISearchApiClient : IISearchApiClient
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation("Cookie", $"apiKey={_options.ApiKey}");
         request.Headers.TryAddWithoutValidation("From", _options.ContactEmail);
+
+        // GET operations omit content; a body is attached only when the caller supplied a factory
+        // capable of creating fresh content for the current request attempt.
         if (contentFactory is not null)
         {
             request.Content = contentFactory();
@@ -399,6 +444,9 @@ internal sealed class ISearchApiClient : IISearchApiClient
         #region implementation
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+        // Truncate only oversized diagnostics. The response status remains the primary error, while
+        // this bound prevents an upstream failure body from flooding the terminal or logs.
         if (body.Length > _options.MaximumResponseCharacters)
         {
             body = body[.._options.MaximumResponseCharacters];
@@ -424,11 +472,16 @@ internal sealed class ISearchApiClient : IISearchApiClient
             response,
             cancellationToken,
             _options.MaximumResponseCharacters).ConfigureAwait(false);
+
+        // Health is expected to be an object because the interactive flow reads its status and
+        // displays the payload. A different JSON shape cannot support that contract safely.
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
             return failure<SearchHealthResponse>("isearch.response.malformed", "iSearch health returned a non-object JSON payload.");
         }
 
+        // Keep a missing or non-string status as null. The caller then treats it as unavailable
+        // instead of assuming that an incomplete health payload means the service is ready.
         var status = document.RootElement.TryGetProperty("status", out var statusElement)
             && statusElement.ValueKind == JsonValueKind.String
             ? statusElement.GetString()
@@ -457,14 +510,21 @@ internal sealed class ISearchApiClient : IISearchApiClient
             response,
             cancellationToken,
             _options.MaximumResponseCharacters).ConfigureAwait(false);
+
+        // Dataset discovery is an array contract; accepting an object or scalar would create
+        // choices that do not correspond to the service's advertised dataset list.
         if (document.RootElement.ValueKind != JsonValueKind.Array)
         {
             return failure<IReadOnlyList<string>>("isearch.response.malformed", "iSearch datasets returned a non-array JSON payload.");
         }
 
         var datasets = new List<string>();
+
+        // Validate every element before adding it so the returned list is either wholly usable or
+        // rejected as one malformed service response.
         foreach (var element in document.RootElement.EnumerateArray())
         {
+            // Empty and non-string entries cannot be selected or safely encoded into later paths.
             if (element.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(element.GetString()))
             {
                 return failure<IReadOnlyList<string>>("isearch.response.malformed", "iSearch datasets must contain only nonempty strings.");
@@ -493,14 +553,22 @@ internal sealed class ISearchApiClient : IISearchApiClient
             response,
             cancellationToken,
             _options.MaximumFieldsResponseCharacters).ConfigureAwait(false);
+
+        // Fields must be an array because each item becomes one selectable/displayable field
+        // definition; the dedicated size limit allows a larger schema without widening other bodies.
         if (document.RootElement.ValueKind != JsonValueKind.Array)
         {
             return failure<IReadOnlyList<SearchField>>("isearch.response.malformed", "iSearch fields returned a non-array JSON payload.");
         }
 
         var fields = new List<SearchField>();
+
+        // Preserve the service's field order while validating each item. One invalid item invalidates
+        // the whole schema because a partial schema could produce an incomplete query or display.
         foreach (var element in document.RootElement.EnumerateArray())
         {
+            // Only the name is mandatory. Optional metadata is parsed separately and remains null
+            // when the service omits it or uses an incompatible JSON type.
             if (element.ValueKind != JsonValueKind.Object
                 || !element.TryGetProperty("name", out var nameElement)
                 || nameElement.ValueKind != JsonValueKind.String
@@ -535,6 +603,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
     {
         #region implementation
 
+        // Treat omitted, null, and wrongly typed optional metadata uniformly as unavailable rather
+        // than manufacturing a value that the service did not provide.
         return element.TryGetProperty(propertyName, out var property)
             && property.ValueKind == JsonValueKind.String
             ? property.GetString()
@@ -552,6 +622,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
     {
         #region implementation
 
+        // Preserve the same nullable contract for optional Boolean flags; only JSON true/false is
+        // accepted as evidence that the service supplied the flag.
         return element.TryGetProperty(propertyName, out var property)
             && property.ValueKind is JsonValueKind.True or JsonValueKind.False
             ? property.GetBoolean()
@@ -561,41 +633,70 @@ internal sealed class ISearchApiClient : IISearchApiClient
     }
 
     /**************************************************************/
-    /// <summary>Parses and validates the documented search envelope.</summary>
+    /// <summary>Parses the documented search envelope and derives its first-page cardinality.</summary>
     /// <param name="response">The successful HTTP response.</param>
+    /// <param name="rows">The bounded number of records requested for each service page.</param>
     /// <param name="cancellationToken">The operation cancellation token.</param>
-    /// <returns>The search envelope or a malformed-response failure.</returns>
+    /// <returns>The search envelope with typed cardinality or a malformed-response failure.</returns>
     private static async Task<OperationResult<SearchResponse>> parseSearchAsync(
         HttpResponseMessage response,
+        int rows,
         CancellationToken cancellationToken)
     {
         #region implementation
 
         using var document = await readJsonAsync(response, cancellationToken).ConfigureAwait(false);
+
+        // Validate the envelope as one unit before reading any values. This prevents a partially
+        // populated response from being mistaken for a walkable page.
         if (document.RootElement.ValueKind != JsonValueKind.Object
             || !document.RootElement.TryGetProperty("returnedCount", out var returnedCount)
             || !document.RootElement.TryGetProperty("totalCount", out var totalCount)
             || !document.RootElement.TryGetProperty("results", out var results)
             || !returnedCount.TryGetInt32(out var returned)
             || !totalCount.TryGetInt32(out var total)
+            || rows is < 1 or > MaximumRows
             || results.ValueKind != JsonValueKind.Array)
         {
             return failure<SearchResponse>("isearch.response.malformed", "iSearch search returned an incomplete response envelope.");
         }
 
         // Clone elements before disposing the document so generic records remain valid after parsing returns.
+        var responseRecords = results.EnumerateArray().Select(item => item.Clone()).ToArray();
+
+        // Counts must be nonnegative and the current page cannot contain more records than the
+        // reported total; rejecting contradictions protects page walkers from bad stop conditions.
+        if (returned < 0 || total < 0 || returned > total)
+        {
+            return failure<SearchResponse>("isearch.response.malformed", "iSearch search returned invalid result counts.");
+        }
+
+        // A zero-result response has no service page; this gives future walkers an unambiguous stop condition.
+        // For nonempty data the first response is page one, while zero uses page and page-count zero
+        // so automation can terminate without inventing a phantom page.
+        var totalPages = total == 0 ? 0 : (int)Math.Ceiling((double)total / rows);
+
         var responseValue = new SearchResponse
         {
-            ReturnedCount = returned,
-            TotalCount = total,
-            Results = results.EnumerateArray().Select(item => item.Clone()).ToArray(),
+            Cardinality = new SearchCardinality
+            {
+                TotalResults = total,
+                CurrentResults = returned,
+                PageNumber = total == 0 ? 0 : 1,
+                TotalPages = totalPages
+            },
+            Results = responseRecords,
+            // Cursor is optional for this initial response model. Preserve it only when the service
+            // gives a string; a different type is treated as absent rather than breaking record parsing.
             Cursor = document.RootElement.TryGetProperty("cursor", out var cursor)
                 && cursor.ValueKind == JsonValueKind.String
                 ? cursor.GetString()
                 : null
         };
 
-        return responseValue.ReturnedCount == responseValue.Results.Count
+        // The count-to-record invariant is required for reliable walking: if it fails, callers
+        // cannot know whether the page is complete or whether records were silently dropped.
+        return responseValue.Cardinality.CurrentResults == responseValue.Results.Count
             ? OperationResult<SearchResponse>.Success(responseValue)
             : failure<SearchResponse>("isearch.response.malformed", "iSearch search returned a count that does not match its records.");
 
@@ -616,6 +717,9 @@ internal sealed class ISearchApiClient : IISearchApiClient
         #region implementation
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+        // A positive limit is opt-in. Zero means the general parser has no extra bound, while a
+        // configured limit rejects the body before JsonDocument allocates an oversized tree.
         if (maximumCharacters > 0 && body.Length > maximumCharacters)
         {
             throw new JsonException("The response exceeded the configured display limit.");
@@ -637,18 +741,24 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
         if (response?.Headers.RetryAfter?.Delta is { } delta && delta >= TimeSpan.Zero)
         {
+            // Prefer a valid duration supplied by the service, but cap it so one response cannot
+            // make an interactive command appear hung indefinitely.
             return TimeSpan.FromSeconds(Math.Min(delta.TotalSeconds, 30));
         }
 
         if (response?.Headers.RetryAfter?.Date is { } date)
         {
             var delay = date - DateTimeOffset.UtcNow;
+
+            // A past date is ignored because it cannot represent a useful wait interval.
             if (delay >= TimeSpan.Zero)
             {
                 return TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds, 30));
             }
         }
 
+        // When the server gives no usable guidance, exponential backoff spaces repeated attempts
+        // while the thirty-second cap keeps the CLI responsive.
         return TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, attempt)));
 
         #endregion
@@ -662,6 +772,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
     {
         #region implementation
 
+        // Retry only request timeout, rate-limit, and server-side failures. Other statuses usually
+        // describe caller input or authorization and repeating them cannot change the outcome.
         return statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
             || (int)statusCode >= 500;
 
@@ -676,6 +788,8 @@ internal sealed class ISearchApiClient : IISearchApiClient
     {
         #region implementation
 
+        // Redirects are a separate policy decision from transient failures because following one
+        // could transfer the authentication cookie to an unintended host.
         return (int)statusCode is >= 300 and <= 399;
 
         #endregion

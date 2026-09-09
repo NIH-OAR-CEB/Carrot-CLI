@@ -7,7 +7,8 @@ namespace Carrot.Cli.ISearch.Contracts;
 /// <summary>Represents the documented iSearch search response envelope.</summary>
 /// <remarks>
 /// Result records remain generic JSON because dataset schemas are discovered at runtime. The API
-/// boundary accepts the response only when the returned count matches the number of records.
+/// boundary accepts the response only when the returned count matches the number of records and
+/// derives the nested cardinality contract from the service envelope and request row limit.
 /// </remarks>
 /// <seealso cref="IISearchApiClient"/>
 internal sealed class SearchResponse
@@ -21,16 +22,9 @@ internal sealed class SearchResponse
     public string? Cursor { get; set; }
 
     /**************************************************************/
-    /// <summary>Gets or sets the number of records returned in this response.</summary>
-    /// <remarks>This value is checked against <see cref="Results"/> by the HTTP boundary.</remarks>
-    [JsonPropertyName("returnedCount")]
-    public int ReturnedCount { get; set; }
-
-    /**************************************************************/
-    /// <summary>Gets or sets the total number of matching records.</summary>
-    /// <remarks>This value may exceed the bounded number of records included in <see cref="Results"/>.</remarks>
-    [JsonPropertyName("totalCount")]
-    public int TotalCount { get; set; }
+    /// <summary>Gets or sets the common counts and page metadata for this response.</summary>
+    /// <remarks>The cursor remains separate because it is the service-owned continuation token for a later page request.</remarks>
+    public SearchCardinality Cardinality { get; set; } = new();
 
     /**************************************************************/
     /// <summary>Gets or sets the generic JSON records returned for the bounded request.</summary>

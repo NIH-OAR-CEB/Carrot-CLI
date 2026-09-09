@@ -15,22 +15,30 @@ The API key is sent only as the `apiKey` cookie to the iSearch HTTPS host. It is
 
 ## Configure return datasets
 
-Return datasets are configured in `src/Carrot.Cli/appsettings.json` under `iSearchReturnTypes`. Each child name is an operator-facing label and its `DefaultFields` array is sent to iSearch as the ordered result-field set. Add additional child objects for additional return datasets:
+Return datasets are configured in `src/Carrot.Cli/appsettings.json` under `iSearchReturnTypes.Results`. The shared `Cardinality` object defines the four report field names used for every configured return dataset. Each other child name is an operator-facing label and its `DefaultFields` array is sent to iSearch as the ordered record-field set. Add additional child objects beside `Grants` for additional return datasets:
 
 ```json
 {
   "iSearchReturnTypes": {
-    "Grants": {
-      "DefaultFields": ["grantNumber", "title", "abstract"]
-    },
-    "Summary": {
-      "DefaultFields": ["id", "title"]
+    "Results": {
+      "Cardinality": {
+        "TotalResultsFieldName": "totalCount",
+        "CurrentResultsFieldName": "returnedCount",
+        "PageNumberFieldName": "pageNumber",
+        "TotalPagesFieldName": "totalPages"
+      },
+      "Grants": {
+        "DefaultFields": ["grantNumber", "title", "abstract"]
+      },
+      "Summary": {
+        "DefaultFields": ["id", "title"]
+      }
     }
   }
 }
 ```
 
-Field names are dataset-specific and must match the selected live database. The CLI preserves the configured order and reports iSearch validation errors safely; it does not silently fall back to an unfiltered response.
+The `*FieldName` values label the common report; they are not added to `DefaultFields` and are not sent as iSearch `fl` fields. iSearch supplies `returnedCount`, `totalCount`, `cursor`, and `results` in its response envelope. Field names in `DefaultFields` are dataset-specific and must match the selected live database. The CLI preserves configured order and reports iSearch validation errors safely; it does not silently fall back to an unfiltered response.
 
 ## Interactive workflow
 
@@ -41,7 +49,7 @@ Field names are dataset-specific and must match the selected live database. The 
 5. After the database is selected, choose **View Fields** to retrieve the live schema. **View Fields** calls the authenticated `GET /fields/{dataset}` route for the selected live database. The terminal table is sorted by `name` and displays `name`, `displayName`, `fieldType`, `defaultQueryField`, `defaultResultField`, `multiValued`, and `searchOnly`. Field names, labels, types, and Boolean flags belong to the live iSearch dataset schema; the CLI does not hard-code a field catalog. Field discovery permits a bounded response of up to 1 MiB by default because a complete dataset schema can be larger than ordinary operation diagnostics. Large displays use **Next Page** and **Previous Page**, while **Back to iSearch** or Escape returns to the dataset menu. After both selections, choose **Submit Query** and enter a nonempty free-text or Lucene query.
 6. **Submit Query** sends the selected return dataset's fields as the comma-separated `fl` result-field parameter on the dataset-scoped `GET /search/{dataset}` request, together with URL-encoded `q`, `defaultOp=AND`, and at most 100 rows. The dataset-scoped route is used because the live body-based POST route currently returns HTTP 500.
 
-Results show returned and total counts plus generic JSON records containing the selected fields. Returning from field discovery or results retains both selections; changing the live database requires selecting a return dataset again. Queries, field metadata, and results remain in memory for the current visit only; no result files are written.
+Results show the configured cardinality names with total results, results in the current response, the current result page, and total result pages, followed by generic JSON records containing the selected fields. For a nonempty initial response, the result page is `1` and total pages uses ceiling division by the requested row limit. Empty data reports page `0` of `0`, providing an unambiguous stop condition for a data walk. The response cursor is retained for user-controlled next-page requests and future bounded automation; the current CLI does not automatically fetch every page. Terminal display pages are separate from iSearch result pages because one record can occupy multiple terminal lines. Returning from field discovery or results retains both selections; changing the live database requires selecting a return dataset again. Queries, field metadata, and results remain in memory for the current visit only; no result files are written.
 
 Use **Back to Main Menu** or Escape to leave a menu. Cancellation returns the standard exit code `130`.
 

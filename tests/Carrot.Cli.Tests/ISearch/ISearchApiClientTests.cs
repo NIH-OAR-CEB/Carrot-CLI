@@ -85,8 +85,82 @@ public sealed class ISearchApiClientTests
             "https://isearch.test/api/search/live-dataset?q=vaccine%20%22phase%201%22&defaultOp=AND&rows=100&fl=title%2Cabstract",
             request.RequestUri!.AbsoluteUri);
         Assert.Empty(handler.RequestBodies);
-        Assert.Equal(1, result.Value!.ReturnedCount);
+        Assert.Equal(1, result.Value!.Cardinality.CurrentResults);
+        Assert.Equal(4, result.Value.Cardinality.TotalResults);
+        Assert.Equal(1, result.Value.Cardinality.PageNumber);
+        Assert.Equal(1, result.Value.Cardinality.TotalPages);
+        Assert.Equal("next", result.Value.Cursor);
         Assert.Equal(7, result.Value.Results[0].GetProperty("id").GetInt32());
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures result-page cardinality uses the request row limit and terminates cleanly for empty data.</summary>
+    [Theory]
+    [InlineData(2, 5, 2, 3)]
+    [InlineData(1, 1, 100, 1)]
+    [InlineData(0, 0, 100, 0)]
+    public async Task SearchAsync_DerivesResultPageCardinality(
+        int returnedCount,
+        int totalCount,
+        int rows,
+        int expectedTotalPages)
+    {
+        #region implementation
+
+        // Empty test responses intentionally omit record objects; nonempty responses synthesize
+        // exactly the declared count so the parser's count-to-record invariant is exercised.
+        var records = returnedCount == 0
+            ? string.Empty
+            : string.Join(',', Enumerable.Range(0, returnedCount).Select(index => $"{{\"id\":{index}}}"));
+        var handler = new RecordingHandler(_ => json(
+            HttpStatusCode.OK,
+            $"{{\"returnedCount\":{returnedCount},\"totalCount\":{totalCount},\"results\":[{records}]}}"));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.SearchAsync(new SearchRequest
+        {
+            Dataset = "live-dataset",
+            Query = "vaccine",
+            Fields = ["title"],
+            DefaultOp = "AND",
+            Rows = rows
+        }, CancellationToken.None);
+
+        Assert.Equal(OperationStatus.Success, result.Status);
+        Assert.Equal(totalCount, result.Value!.Cardinality.TotalResults);
+        Assert.Equal(returnedCount, result.Value.Cardinality.CurrentResults);
+        // Zero results use page zero; every nonempty response represents the first service page.
+        Assert.Equal(totalCount == 0 ? 0 : 1, result.Value.Cardinality.PageNumber);
+        Assert.Equal(expectedTotalPages, result.Value.Cardinality.TotalPages);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures invalid result counts are rejected before a response can be consumed.</summary>
+    [Theory]
+    [InlineData("{\"returnedCount\":-1,\"totalCount\":0,\"results\":[]}")]
+    [InlineData("{\"returnedCount\":2,\"totalCount\":1,\"results\":[{\"id\":1},{\"id\":2}]}")]
+    public async Task SearchAsync_InvalidResultCounts_ReturnsMalformedFailure(string payload)
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => json(HttpStatusCode.OK, payload));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.SearchAsync(new SearchRequest
+        {
+            Dataset = "live-dataset",
+            Query = "vaccine",
+            Fields = ["title"],
+            DefaultOp = "AND",
+            Rows = 100
+        }, CancellationToken.None);
+
+        Assert.Equal(OperationStatus.Failure, result.Status);
+        Assert.Equal("isearch.response.malformed", result.Messages[0].Code);
 
         #endregion
     }
@@ -281,6 +355,8 @@ public sealed class ISearchApiClientTests
         #region implementation
 
         var callCount = 0;
+        // Return a transient first response to exercise retry selection, then a successful dataset
+        // response so the test proves the second attempt is actually reached.
         var handler = new RecordingHandler(_ => ++callCount == 1
             ? new HttpResponseMessage(HttpStatusCode.TooManyRequests)
             {
@@ -379,6 +455,8 @@ public sealed class ISearchApiClientTests
             #region implementation
 
             Requests.Add(request);
+            // GET requests have no body in this client, but retain this branch so the test handler
+            // remains correct if a body-based operation is added later.
             if (request.Content is not null)
             {
                 RequestBodies.Add(request.Content.ReadAsStringAsync().GetAwaiter().GetResult());
