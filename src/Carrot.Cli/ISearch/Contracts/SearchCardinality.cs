@@ -6,8 +6,9 @@ namespace Carrot.Cli.ISearch.Contracts;
 /// </summary>
 /// <remarks>
 /// Counts describe the service response page, not the number of terminal lines used to display
-/// serialized records. A nonempty initial response is page one; an empty response is page zero of
-/// zero pages so a caller can terminate a walk without inventing an empty page.
+/// serialized records. A nonempty initial response is page one, later responses use their supplied
+/// service page number, and an empty initial response is page zero of zero pages so a caller can
+/// terminate a walk without inventing an empty page.
 /// </remarks>
 /// <seealso cref="SearchResponse"/>
 internal sealed class SearchCardinality

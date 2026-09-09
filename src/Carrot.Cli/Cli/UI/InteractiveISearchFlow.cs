@@ -374,15 +374,17 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             .ShowAsync(_console, cancellationToken)
             .ConfigureAwait(false);
 
-        // The UI fixes the row bound and Boolean operator for the first interactive query phase.
-        var result = await _client.SearchAsync(new SearchRequest
+        // Keep one stable query context so every service-page fetch reuses the selected database,
+        // return fields, operator, and row limit instead of reconstructing them from UI state.
+        var request = new SearchRequest
         {
             Dataset = database,
             Query = query.Trim(),
             Fields = returnType.DefaultFields,
             DefaultOp = "AND",
             Rows = 100
-        }, cancellationToken).ConfigureAwait(false);
+        };
+        var result = await _client.SearchAsync(request, cancellationToken).ConfigureAwait(false);
 
         // Search failures are rendered as operation messages and return to the menu, allowing the
         // operator to adjust the query without losing the selected database or return dataset.
@@ -392,7 +394,10 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             return;
         }
 
-        await _resultsPager.ShowAsync(result.Value!, cardinalityFieldNames, cancellationToken).ConfigureAwait(false);
+        // The session keeps the selected return dataset outside the pager while providing the
+        // reusable one-step continuation contract needed by interactive navigation and future crawling.
+        var session = new SearchResultPageSession(_client, request, result.Value!, returnType.Name);
+        await _resultsPager.ShowAsync(session, cardinalityFieldNames, cancellationToken).ConfigureAwait(false);
 
         #endregion
     }

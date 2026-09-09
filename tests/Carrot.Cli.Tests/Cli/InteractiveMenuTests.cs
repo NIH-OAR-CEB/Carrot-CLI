@@ -42,8 +42,10 @@ public sealed class InteractiveMenuTests
         // Assert
         Assert.Equal(ExitCodes.Success, exitCode);
         var preambleIndex = console.Output.IndexOf("Welcome to Carrot CLI", StringComparison.Ordinal);
+        var footerIndex = console.Output.IndexOf("Search Summary", StringComparison.Ordinal);
         var menuIndex = console.Output.IndexOf("Select an option", StringComparison.Ordinal);
         Assert.True(preambleIndex >= 0, "The application preamble was not rendered.");
+        Assert.True(footerIndex > preambleIndex, "The application footer must follow the preamble.");
         Assert.True(menuIndex > preambleIndex, "The application preamble must precede the main menu.");
 
         #endregion
@@ -247,6 +249,7 @@ public sealed class InteractiveMenuTests
             console,
             new StubApplicationPreambleProvider(),
             markdownRenderer);
+        var footerRenderer = new ApplicationFooterRenderer(console);
         var aboutRenderer = new AboutRenderer(console);
         var options = Options.Create(new CarrotCliOptions());
         var formats = new DocumentFormatCatalog();
@@ -298,6 +301,7 @@ public sealed class InteractiveMenuTests
         return new InteractiveMenu(
             console,
             preambleRenderer,
+            footerRenderer,
             helpRenderer,
             aboutRenderer,
             processDocumentsMenu,

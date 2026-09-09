@@ -113,6 +113,82 @@ public sealed class InteractiveISearchFlowTests
     }
 
     /**************************************************************/
+    /// <summary>Ensures fetching the next service page keeps the selected return dataset unchanged.</summary>
+    [Fact]
+    public async Task RunAsync_FetchesNextResultPage_WithoutChangingReturnDataset()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        var client = new FakeClient
+        {
+            Health = OperationResult<SearchHealthResponse>.Success(new SearchHealthResponse
+            {
+                Status = "UP",
+                Payload = JsonSerializer.SerializeToElement(new { status = "UP" })
+            }),
+            Datasets = OperationResult<IReadOnlyList<string>>.Success(["live-grants"]),
+            Search = OperationResult<SearchResponse>.Success(new SearchResponse
+            {
+                Cursor = "next-token",
+                Cardinality = new SearchCardinality
+                {
+                    CurrentResults = 1,
+                    TotalResults = 2,
+                    PageNumber = 1,
+                    TotalPages = 2
+                },
+                Results = [JsonSerializer.SerializeToElement(new { title = "first chunk" })]
+            }),
+            NextPage = OperationResult<SearchResponse>.Success(new SearchResponse
+            {
+                Cardinality = new SearchCardinality
+                {
+                    CurrentResults = 1,
+                    TotalResults = 2,
+                    PageNumber = 2,
+                    TotalPages = 2
+                },
+                Results = [JsonSerializer.SerializeToElement(new { title = "second chunk" })]
+            })
+        };
+
+        // Select the live database, select Grants, submit one query, fetch the next service page,
+        // then return to the dataset menu without reopening the return-dataset picker.
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushTextWithEnter("vaccine research");
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        var flow = createFlow(console, client, validOptions());
+
+        await flow.RunAsync(CancellationToken.None);
+
+        Assert.Equal(1, client.NextPageCalls);
+        Assert.Equal("next-token", client.LastCursor);
+        Assert.Equal(2, client.LastNextPageNumber);
+        Assert.Equal("live-grants", client.LastSearch!.Dataset);
+        Assert.Equal(["grantNumber", "title"], client.LastSearch.Fields);
+        Assert.Contains("Fetch Next Result Page", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Result Page 2 of 2", console.Output, StringComparison.Ordinal);
+        Assert.Contains("second chunk", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Ensures a query cannot be submitted until a configured return dataset is selected.</summary>
     [Fact]
     public async Task RunAsync_WithoutReturnDataset_DoesNotSubmitQuery()
@@ -320,7 +396,7 @@ public sealed class InteractiveISearchFlowTests
             new ISearchOptionsValidator(),
             returnTypeCatalog ?? createReturnTypeCatalog(),
             client,
-            new SearchResultsPager(console),
+            new SearchResultsPager(console, new ApplicationFooterRenderer(console)),
             new SearchFieldsPager(console));
 
         #endregion
@@ -421,6 +497,11 @@ public sealed class InteractiveISearchFlowTests
             [new OperationMessage { Code = "test.search", Message = "Search was not configured.", Severity = OperationMessageSeverity.Error }]);
 
         /**************************************************************/
+        /// <summary>Gets or sets the configured continuation-page result.</summary>
+        public OperationResult<SearchResponse> NextPage { get; init; } = OperationResult<SearchResponse>.Failure(
+            [new OperationMessage { Code = "test.next-page", Message = "Next page was not configured.", Severity = OperationMessageSeverity.Error }]);
+
+        /**************************************************************/
         /// <summary>Gets or sets the field result.</summary>
         public OperationResult<IReadOnlyList<SearchField>> Fields { get; set; } = OperationResult<IReadOnlyList<SearchField>>.Success([]);
 
@@ -443,6 +524,18 @@ public sealed class InteractiveISearchFlowTests
         /**************************************************************/
         /// <summary>Gets the last submitted request.</summary>
         public SearchRequest? LastSearch { get; private set; }
+
+        /**************************************************************/
+        /// <summary>Gets the number of continuation-page calls.</summary>
+        public int NextPageCalls { get; private set; }
+
+        /**************************************************************/
+        /// <summary>Gets the cursor used by the last continuation-page call.</summary>
+        public string? LastCursor { get; private set; }
+
+        /**************************************************************/
+        /// <summary>Gets the page number used by the last continuation-page call.</summary>
+        public int LastNextPageNumber { get; private set; }
 
         /**************************************************************/
         /// <summary>Returns the configured health result.</summary>
@@ -481,6 +574,25 @@ public sealed class InteractiveISearchFlowTests
         {
             LastSearch = request;
             return Task.FromResult(Search);
+        }
+
+        /**************************************************************/
+        /// <summary>Records and returns the configured continuation-page result.</summary>
+        /// <param name="request">The stable query context.</param>
+        /// <param name="cursor">The cursor from the current response.</param>
+        /// <param name="nextPageNumber">The expected next service page number.</param>
+        /// <param name="cancellationToken">The ignored test cancellation token.</param>
+        public Task<OperationResult<SearchResponse>> SearchNextPageAsync(
+            SearchRequest request,
+            string cursor,
+            int nextPageNumber,
+            CancellationToken cancellationToken)
+        {
+            NextPageCalls++;
+            LastSearch = request;
+            LastCursor = cursor;
+            LastNextPageNumber = nextPageNumber;
+            return Task.FromResult(NextPage);
         }
 
         #endregion

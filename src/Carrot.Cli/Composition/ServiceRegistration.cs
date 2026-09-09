@@ -111,6 +111,7 @@ internal static class ServiceRegistration
         services.AddSingleton<IApplicationPreambleProvider, FileApplicationPreambleProvider>();
         services.AddTransient<MarkdownHelpRenderer>();
         services.AddTransient<ApplicationPreambleRenderer>();
+        services.AddTransient<ApplicationFooterRenderer>();
         services.AddTransient<HelpRenderer>();
         services.AddTransient<AboutRenderer>();
         services.AddTransient<ConsoleReporter>();

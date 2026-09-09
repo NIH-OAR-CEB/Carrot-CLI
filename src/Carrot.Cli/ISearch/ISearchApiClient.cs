@@ -129,13 +129,70 @@ internal sealed class ISearchApiClient : IISearchApiClient
     }
 
     /**************************************************************/
-    /// <summary>Calls the dataset-scoped <c>GET /search/{dataset}</c> endpoint with a bounded query.</summary>
+    /// <summary>Calls the dataset-scoped <c>GET /search/{dataset}</c> endpoint with a bounded initial query.</summary>
     /// <param name="request">The query request to validate and submit.</param>
     /// <param name="cancellationToken">The token that cancels the operation.</param>
-    /// <returns>The validated search envelope or an expected operation failure.</returns>
+    /// <returns>The validated first search envelope or an expected operation failure.</returns>
     /// <remarks>Invalid query controls fail before request creation, and transient failures are retried only within the configured budget.</remarks>
     public Task<OperationResult<SearchResponse>> SearchAsync(
         SearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        return searchAsync(request, cursor: null, pageNumber: 1, cancellationToken);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Calls the dataset-scoped search endpoint for one cursor-selected result page.</summary>
+    /// <param name="request">The unchanged database, query, operator, fields, and row-limit context.</param>
+    /// <param name="cursor">The nonempty cursor supplied by the preceding successful response.</param>
+    /// <param name="nextPageNumber">The one-based result-page number expected from the response.</param>
+    /// <param name="cancellationToken">The token that cancels the operation.</param>
+    /// <returns>The validated continuation response or an expected operation failure.</returns>
+    /// <remarks>
+    /// The cursor is a service continuation token, not a terminal display-page index. This method
+    /// performs one request so callers can impose their own bounded walking policy.
+    /// </remarks>
+    /// <seealso cref="SearchAsync"/>
+    public Task<OperationResult<SearchResponse>> SearchNextPageAsync(
+        SearchRequest request,
+        string cursor,
+        int nextPageNumber,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        if (string.IsNullOrWhiteSpace(cursor) || nextPageNumber < 1)
+        {
+            // Reject unusable continuation state before the credential gate and HTTP pipeline so a
+            // caller cannot accidentally issue a fresh first-page request or a phantom page.
+            return Task.FromResult(failure<SearchResponse>(
+                "isearch.paging.invalid",
+                "The iSearch next-page request must contain a cursor and a positive result-page number."));
+        }
+
+        return searchAsync(request, cursor.Trim(), nextPageNumber, cancellationToken);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Validates and submits one initial or cursor-based search request.</summary>
+    /// <param name="request">The stable database, query, field, operator, and row-limit context.</param>
+    /// <param name="cursor">The optional service cursor for a continuation request.</param>
+    /// <param name="pageNumber">The one-based page context supplied to the response parser.</param>
+    /// <param name="cancellationToken">The caller-owned cancellation token.</param>
+    /// <returns>The validated search response or an expected operation failure.</returns>
+    /// <remarks>Both entry points share this method so initial and continuation requests cannot drift in validation or safety policy.</remarks>
+    /// <seealso cref="SearchAsync"/>
+    /// <seealso cref="SearchNextPageAsync"/>
+    private Task<OperationResult<SearchResponse>> searchAsync(
+        SearchRequest request,
+        string? cursor,
+        int pageNumber,
         CancellationToken cancellationToken)
     {
         #region implementation
@@ -150,27 +207,50 @@ internal sealed class ISearchApiClient : IISearchApiClient
             || request.Fields.Count == 0
             || request.Fields.Any(string.IsNullOrWhiteSpace)
             || !string.Equals(request.DefaultOp, "AND", StringComparison.Ordinal)
-            || request.Rows is < 1 or > MaximumRows)
+            || request.Rows is < 1 or > MaximumRows
+            || pageNumber < 1)
         {
             return Task.FromResult(failure<SearchResponse>(
                 "isearch.request.invalid",
                 "The iSearch request must contain a dataset, a query, at least one result field, defaultOp AND, and 1-100 rows."));
         }
 
-        // The live dataset-scoped GET operation currently succeeds for grants while the body-based POST operation returns HTTP 500.
-        var requestUri = $"search/{Uri.EscapeDataString(request.Dataset)}"
-            + $"?q={Uri.EscapeDataString(request.Query)}"
-            + $"&defaultOp={Uri.EscapeDataString(request.DefaultOp)}"
-            + $"&rows={request.Rows}"
-            + $"&fl={Uri.EscapeDataString(string.Join(',', request.Fields))}";
+        // Keep the query context identical for every page; only the optional cursor distinguishes a
+        // continuation from the initial service request.
+        var requestUri = createSearchUri(request, cursor);
 
         return sendAsync(
             "search",
             requestUri,
             HttpMethod.Get,
             contentFactory: null,
-            (response, cancellation) => parseSearchAsync(response, request.Rows, cancellation),
+            (response, cancellation) => parseSearchAsync(response, request.Rows, pageNumber, cancellation),
             cancellationToken);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Builds the encoded search URI shared by initial and continuation requests.</summary>
+    /// <param name="request">The validated search query context.</param>
+    /// <param name="cursor">The optional service cursor.</param>
+    /// <returns>A relative dataset-scoped search URI.</returns>
+    /// <remarks>The cursor is encoded as a query value and is never mixed into the selected record-field list.</remarks>
+    private static string createSearchUri(SearchRequest request, string? cursor)
+    {
+        #region implementation
+
+        // The live dataset-scoped GET operation is retained because the body-based POST operation
+        // currently returns HTTP 500; continuation adds only the service-owned cursor value.
+        var requestUri = $"search/{Uri.EscapeDataString(request.Dataset)}"
+            + $"?q={Uri.EscapeDataString(request.Query)}"
+            + $"&defaultOp={Uri.EscapeDataString(request.DefaultOp)}"
+            + $"&rows={request.Rows}"
+            + $"&fl={Uri.EscapeDataString(string.Join(',', request.Fields))}";
+
+        return string.IsNullOrWhiteSpace(cursor)
+            ? requestUri
+            : $"{requestUri}&cursor={Uri.EscapeDataString(cursor)}";
 
         #endregion
     }
@@ -633,14 +713,16 @@ internal sealed class ISearchApiClient : IISearchApiClient
     }
 
     /**************************************************************/
-    /// <summary>Parses the documented search envelope and derives its first-page cardinality.</summary>
+    /// <summary>Parses the documented search envelope and derives its service-page cardinality.</summary>
     /// <param name="response">The successful HTTP response.</param>
     /// <param name="rows">The bounded number of records requested for each service page.</param>
+    /// <param name="pageNumber">The one-based service page represented by this response.</param>
     /// <param name="cancellationToken">The operation cancellation token.</param>
     /// <returns>The search envelope with typed cardinality or a malformed-response failure.</returns>
     private static async Task<OperationResult<SearchResponse>> parseSearchAsync(
         HttpResponseMessage response,
         int rows,
+        int pageNumber,
         CancellationToken cancellationToken)
     {
         #region implementation
@@ -656,6 +738,7 @@ internal sealed class ISearchApiClient : IISearchApiClient
             || !returnedCount.TryGetInt32(out var returned)
             || !totalCount.TryGetInt32(out var total)
             || rows is < 1 or > MaximumRows
+            || pageNumber < 1
             || results.ValueKind != JsonValueKind.Array)
         {
             return failure<SearchResponse>("isearch.response.malformed", "iSearch search returned an incomplete response envelope.");
@@ -671,23 +754,36 @@ internal sealed class ISearchApiClient : IISearchApiClient
             return failure<SearchResponse>("isearch.response.malformed", "iSearch search returned invalid result counts.");
         }
 
-        // A zero-result response has no service page; this gives future walkers an unambiguous stop condition.
-        // For nonempty data the first response is page one, while zero uses page and page-count zero
-        // so automation can terminate without inventing a phantom page.
+        // A service page cannot exceed the requested row bound or the derived result-page range;
+        // rejecting either contradiction prevents a crawler from skipping or repeating a page.
         var totalPages = total == 0 ? 0 : (int)Math.Ceiling((double)total / rows);
+        if (returned > rows || (total > 0 && pageNumber > totalPages))
+        {
+            return failure<SearchResponse>("isearch.response.malformed", "iSearch search returned invalid result-page metadata.");
+        }
 
+        // A present cursor must be a string or explicit null. Treating an object or number as an
+        // absent cursor would hide a malformed continuation contract from future page walkers.
+        if (document.RootElement.TryGetProperty("cursor", out var cursorValue)
+            && cursorValue.ValueKind is not JsonValueKind.String and not JsonValueKind.Null)
+        {
+            return failure<SearchResponse>("isearch.response.malformed", "iSearch search returned an invalid continuation cursor.");
+        }
+
+        // A zero-result initial response has no service page; this gives future walkers an
+        // unambiguous stop condition. Nonempty responses retain the caller-supplied service page.
         var responseValue = new SearchResponse
         {
             Cardinality = new SearchCardinality
             {
                 TotalResults = total,
                 CurrentResults = returned,
-                PageNumber = total == 0 ? 0 : 1,
+                PageNumber = total == 0 ? 0 : pageNumber,
                 TotalPages = totalPages
             },
             Results = responseRecords,
-            // Cursor is optional for this initial response model. Preserve it only when the service
-            // gives a string; a different type is treated as absent rather than breaking record parsing.
+            // Cursor is optional at the end of a walk. Preserve it only when the service gives a
+            // string; a different type is treated as absent rather than becoming a usable token.
             Cursor = document.RootElement.TryGetProperty("cursor", out var cursor)
                 && cursor.ValueKind == JsonValueKind.String
                 ? cursor.GetString()

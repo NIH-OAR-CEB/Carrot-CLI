@@ -21,6 +21,7 @@ internal sealed class InteractiveMenu
     private static readonly object BackToMainMenu = new();
     private readonly IAnsiConsole _console;
     private readonly ApplicationPreambleRenderer _preambleRenderer;
+    private readonly ApplicationFooterRenderer _footerRenderer;
     private readonly HelpRenderer _helpRenderer;
     private readonly AboutRenderer _aboutRenderer;
     private readonly ProcessDocumentsMenu _processDocumentsMenu;
@@ -67,6 +68,7 @@ internal sealed class InteractiveMenu
     /// </summary>
     /// <param name="console">The interactive Spectre console.</param>
     /// <param name="preambleRenderer">The renderer for the editable welcome and getting-started content.</param>
+    /// <param name="footerRenderer">The shared renderer for application and result-navigation status.</param>
     /// <param name="helpRenderer">The curated Markdown help renderer.</param>
     /// <param name="aboutRenderer">The application-information renderer.</param>
     /// <param name="processDocumentsMenu">The implemented document preparation and review menu.</param>
@@ -76,6 +78,7 @@ internal sealed class InteractiveMenu
     public InteractiveMenu(
         IAnsiConsole console,
         ApplicationPreambleRenderer preambleRenderer,
+        ApplicationFooterRenderer footerRenderer,
         HelpRenderer helpRenderer,
         AboutRenderer aboutRenderer,
         ProcessDocumentsMenu processDocumentsMenu,
@@ -87,6 +90,7 @@ internal sealed class InteractiveMenu
 
         ArgumentNullException.ThrowIfNull(console);
         ArgumentNullException.ThrowIfNull(preambleRenderer);
+        ArgumentNullException.ThrowIfNull(footerRenderer);
         ArgumentNullException.ThrowIfNull(helpRenderer);
         ArgumentNullException.ThrowIfNull(aboutRenderer);
         ArgumentNullException.ThrowIfNull(processDocumentsMenu);
@@ -96,6 +100,7 @@ internal sealed class InteractiveMenu
 
         _console = console;
         _preambleRenderer = preambleRenderer;
+        _footerRenderer = footerRenderer;
         _helpRenderer = helpRenderer;
         _aboutRenderer = aboutRenderer;
         _processDocumentsMenu = processDocumentsMenu;
@@ -123,6 +128,11 @@ internal sealed class InteractiveMenu
         }
 
         _preambleRenderer.Render();
+        _footerRenderer.Render(new ApplicationFooterState
+        {
+            Context = "Main Menu",
+            Instruction = "Choose a workflow. Ctrl+C cancels the active operation."
+        });
 
         try
         {

@@ -139,10 +139,80 @@ public sealed class ISearchApiClientTests
     }
 
     /**************************************************************/
+    /// <summary>Ensures continuation preserves the query context and advances service cardinality.</summary>
+    [Fact]
+    public async Task SearchNextPageAsync_UsesCursorAndPreservesQueryContext()
+    {
+        #region implementation
+
+        var callNumber = 0;
+        var handler = new RecordingHandler(_ =>
+        {
+            callNumber++;
+            return json(
+                HttpStatusCode.OK,
+                "{\"cursor\":\"final token\",\"returnedCount\":1,\"totalCount\":11,\"results\":[{\"id\":11}]}");
+        });
+        var client = createClient(handler, validOptions());
+        var request = new SearchRequest
+        {
+            Dataset = "live/dataset",
+            Query = "vaccine \"phase 1\"",
+            Fields = ["title", "abstract"],
+            DefaultOp = "AND",
+            Rows = 10
+        };
+
+        var result = await client.SearchNextPageAsync(request, "next cursor/with spaces", 2, CancellationToken.None);
+
+        var outgoingRequest = Assert.Single(handler.Requests);
+        Assert.Equal(1, callNumber);
+        Assert.Equal(
+            "https://isearch.test/api/search/live%2Fdataset?q=vaccine%20%22phase%201%22&defaultOp=AND&rows=10&fl=title%2Cabstract&cursor=next%20cursor%2Fwith%20spaces",
+            outgoingRequest.RequestUri!.AbsoluteUri);
+        Assert.Equal(OperationStatus.Success, result.Status);
+        Assert.Equal(11, result.Value!.Cardinality.TotalResults);
+        Assert.Equal(2, result.Value.Cardinality.PageNumber);
+        Assert.Equal(2, result.Value.Cardinality.TotalPages);
+        Assert.Equal("final token", result.Value.Cursor);
+        Assert.Equal(11, result.Value.Results[0].GetProperty("id").GetInt32());
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures unusable continuation state fails before credentials or HTTP are used.</summary>
+    [Theory]
+    [InlineData(" ", 2)]
+    [InlineData("cursor", 0)]
+    public async Task SearchNextPageAsync_InvalidContinuation_DoesNotSendRequest(string cursor, int pageNumber)
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.SearchNextPageAsync(new SearchRequest
+        {
+            Dataset = "live-dataset",
+            Query = "vaccine",
+            Fields = ["title"],
+            Rows = 100
+        }, cursor, pageNumber, CancellationToken.None);
+
+        Assert.Empty(handler.Requests);
+        Assert.Equal(OperationStatus.Failure, result.Status);
+        Assert.Equal("isearch.paging.invalid", result.Messages[0].Code);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Ensures invalid result counts are rejected before a response can be consumed.</summary>
     [Theory]
     [InlineData("{\"returnedCount\":-1,\"totalCount\":0,\"results\":[]}")]
     [InlineData("{\"returnedCount\":2,\"totalCount\":1,\"results\":[{\"id\":1},{\"id\":2}]}")]
+    [InlineData("{\"cursor\":{},\"returnedCount\":0,\"totalCount\":0,\"results\":[]}")]
     public async Task SearchAsync_InvalidResultCounts_ReturnsMalformedFailure(string payload)
     {
         #region implementation

@@ -1,5 +1,5 @@
 using Carrot.Cli.Configuration;
-using Carrot.Cli.ISearch.Contracts;
+using Carrot.Cli.ISearch;
 
 namespace Carrot.Cli.Cli.UI;
 
@@ -10,13 +10,13 @@ namespace Carrot.Cli.Cli.UI;
 internal interface ISearchResultsPager
 {
     /**************************************************************/
-    /// <summary>Displays configured cardinality, result records, and bounded terminal navigation.</summary>
-    /// <param name="response">The validated search response.</param>
+    /// <summary>Displays configured cardinality, result records, and two-layer page navigation.</summary>
+    /// <param name="session">The continuation-aware session for the current iSearch query.</param>
     /// <param name="cardinalityFieldNames">The configured labels for the common cardinality values.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
     /// <returns>A task representing results navigation.</returns>
     Task ShowAsync(
-        SearchResponse response,
+        SearchResultPageSession session,
         SearchCardinalityFieldNames cardinalityFieldNames,
         CancellationToken cancellationToken);
 }

@@ -1,10 +1,11 @@
 namespace Carrot.Cli.ISearch.Contracts;
 
 /**************************************************************/
-/// <summary>Represents the bounded query submitted to iSearch search.</summary>
+/// <summary>Represents the stable bounded query context submitted to iSearch search.</summary>
 /// <remarks>
 /// The API boundary requires a nonempty dataset and query, the exact <c>AND</c> default operator,
-/// at least one result field, and a row count between 1 and 100 before it creates a request.
+/// at least one result field, and a row count between 1 and 100 before it creates a request. The
+/// same context is reused when a caller requests a later service page with a cursor.
 /// </remarks>
 /// <seealso cref="IISearchApiClient"/>
 internal sealed class SearchRequest
