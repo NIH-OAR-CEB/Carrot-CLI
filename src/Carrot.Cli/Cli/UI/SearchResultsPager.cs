@@ -10,8 +10,8 @@ namespace Carrot.Cli.Cli.UI;
 /**************************************************************/
 /// <summary>Renders iSearch cardinality and generic JSON records with separate display and data navigation.</summary>
 /// <remarks>
-/// Records are serialized without terminal markup interpretation and remain in memory only for
-/// the current workflow visit. Terminal display pages never represent service result pages.
+/// Records are serialized without terminal markup interpretation. The current session retains every
+/// fetched service page for an explicit Excel export, while terminal display pages remain presentation-only.
 /// </remarks>
 /// <seealso cref="SearchResultPageSession"/>
 /// <seealso cref="SearchResponse"/>
@@ -27,6 +27,7 @@ internal sealed class SearchResultsPager : ISearchResultsPager
     private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
     private readonly IAnsiConsole _console;
     private readonly ApplicationFooterRenderer _footerRenderer;
+    private readonly ISearchResultsExportFlow? _exportFlow;
 
     /**************************************************************/
     /// <summary>Defines the independent terminal and service-data actions below one results view.</summary>
@@ -45,6 +46,10 @@ internal sealed class SearchResultsPager : ISearchResultsPager
         FetchNextResultPage,
 
         /**************************************************************/
+        /// <summary>Saves every service result page walked in the current session to Excel.</summary>
+        SaveResults,
+
+        /**************************************************************/
         /// <summary>Returns to the iSearch dataset menu.</summary>
         Back
     }
@@ -53,7 +58,11 @@ internal sealed class SearchResultsPager : ISearchResultsPager
     /// <summary>Initializes the results pager with the destination console.</summary>
     /// <param name="console">The console receiving literal counts, records, and prompts.</param>
     /// <param name="footerRenderer">The shared renderer for result-navigation status.</param>
-    public SearchResultsPager(IAnsiConsole console, ApplicationFooterRenderer footerRenderer)
+    /// <param name="exportFlow">The optional explicit iSearch Excel export flow.</param>
+    public SearchResultsPager(
+        IAnsiConsole console,
+        ApplicationFooterRenderer footerRenderer,
+        ISearchResultsExportFlow? exportFlow = null)
     {
         #region implementation
 
@@ -61,6 +70,7 @@ internal sealed class SearchResultsPager : ISearchResultsPager
         ArgumentNullException.ThrowIfNull(footerRenderer);
         _console = console;
         _footerRenderer = footerRenderer;
+        _exportFlow = exportFlow;
 
         #endregion
     }
@@ -155,6 +165,11 @@ internal sealed class SearchResultsPager : ISearchResultsPager
                 choices.Add(PageChoice.FetchNextResultPage);
             }
 
+            if (_exportFlow is not null)
+            {
+                choices.Add(PageChoice.SaveResults);
+            }
+
             choices.Add(PageChoice.Back);
             var selected = await new SelectionPrompt<PageChoice>()
                 .Title($"[bold orange1]iSearch Results[/] - Result Page {response.Cardinality.PageNumber} of {response.Cardinality.TotalPages}; Display Page {pageIndex + 1} of {pageCount}")
@@ -166,6 +181,7 @@ internal sealed class SearchResultsPager : ISearchResultsPager
                     PageChoice.NextDisplayPage => "Next Display Page",
                     PageChoice.PreviousDisplayPage => "Previous Display Page",
                     PageChoice.FetchNextResultPage => "Fetch Next Result Page",
+                    PageChoice.SaveResults => "Save iSearch Results to Excel",
                     PageChoice.Back => "Back to iSearch",
                     _ => choice.ToString()
                 })
@@ -202,6 +218,16 @@ internal sealed class SearchResultsPager : ISearchResultsPager
                     populateLines(lines, response);
                     pageCount = calculatePageCount(lines.Count, pageSize);
                     pageIndex = 0;
+                    break;
+
+                case PageChoice.SaveResults:
+                    // Export consumes the session's retained pages and must not change the current
+                    // terminal page or trigger an unvisited network request.
+                    if (_exportFlow is not null)
+                    {
+                        await _exportFlow.RunAsync(session, cancellationToken).ConfigureAwait(false);
+                    }
+
                     break;
 
                 case PageChoice.Back:

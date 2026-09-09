@@ -138,6 +138,49 @@ public sealed class SearchResultsPagerTests
     }
 
     /**************************************************************/
+    /// <summary>Ensures Save invokes the export flow without fetching or replacing the current page.</summary>
+    [Fact]
+    public async Task ShowAsync_SaveActionUsesRetainedSession()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Escape);
+        var exportFlow = new CapturingExportFlow();
+        var page = new SearchResponse
+        {
+            Cardinality = new SearchCardinality
+            {
+                TotalResults = 1,
+                CurrentResults = 1,
+                PageNumber = 1,
+                TotalPages = 1
+            },
+            Results = [System.Text.Json.JsonSerializer.SerializeToElement(new { title = "saved" })]
+        };
+        var session = new SearchResultPageSession(
+            new StubClient(),
+            new SearchRequest
+            {
+                Dataset = "grants",
+                Query = "example",
+                Fields = ["title"],
+                Rows = 100
+            },
+            page);
+
+        await new SearchResultsPager(console, new ApplicationFooterRenderer(console), exportFlow)
+            .ShowAsync(session, createFieldNames(), CancellationToken.None);
+
+        Assert.Same(session, exportFlow.Session);
+        Assert.Contains("Save iSearch Results to Excel", console.Output, StringComparison.Ordinal);
+        Assert.Equal("saved", session.WalkedResults[0].GetProperty("title").GetString());
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Creates the shared cardinality labels used by pager tests.</summary>
     /// <returns>Valid report labels.</returns>
     private static SearchCardinalityFieldNames createFieldNames() => new()
@@ -207,6 +250,30 @@ public sealed class SearchResultsPagerTests
         {
             NextPageCalls++;
             return Task.FromResult(NextPage);
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Captures the session supplied by the pager's save action.</summary>
+    private sealed class CapturingExportFlow : ISearchResultsExportFlow
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Gets the session received by the save action.</summary>
+        public SearchResultPageSession? Session { get; private set; }
+
+        /**************************************************************/
+        /// <summary>Captures the retained session without performing file I/O.</summary>
+        /// <param name="session">The session selected for export.</param>
+        /// <param name="cancellationToken">The ignored cancellation token.</param>
+        /// <returns>A completed interaction task.</returns>
+        public Task RunAsync(SearchResultPageSession session, CancellationToken cancellationToken)
+        {
+            Session = session;
+            return Task.CompletedTask;
         }
 
         #endregion

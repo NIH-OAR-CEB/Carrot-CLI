@@ -194,9 +194,12 @@ public sealed class CommandRouteTests
         Assert.NotNull(provider.GetRequiredService<ExcelOutputPathResolver>());
         Assert.NotNull(provider.GetRequiredService<ExcelOutputPathSuggester>());
         Assert.NotNull(provider.GetRequiredService<IExcelReportWriter>());
+        Assert.NotNull(provider.GetRequiredService<IExcelWorkbookWriter>());
         Assert.NotNull(provider.GetRequiredService<IJsonArtifactWriter>());
         Assert.NotNull(provider.GetRequiredService<IProcessedResultsExporter>());
         Assert.NotNull(provider.GetRequiredService<ProcessedResultsExportFlow>());
+        Assert.NotNull(provider.GetRequiredService<ISearchResultsExporter>());
+        Assert.NotNull(provider.GetRequiredService<ISearchResultsExportFlow>());
 
         #endregion
     }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Carrot.Cli.Common;
 using Carrot.Cli.ISearch.Contracts;
 
@@ -17,8 +18,11 @@ internal sealed class SearchResultPageSession
 {
     #region implementation
 
+    private const int MaximumWalkedResults = 1_048_575;
     private readonly IISearchApiClient _client;
     private readonly SearchRequest _request;
+    private readonly List<SearchResponse> _walkedPages;
+    private readonly List<JsonElement> _walkedResults;
 
     /**************************************************************/
     /// <summary>Initializes a page session from a stable query and its first successful response.</summary>
@@ -43,6 +47,8 @@ internal sealed class SearchResultPageSession
         _request = request;
         ReturnDataset = returnDataset;
         CurrentPage = initialPage;
+        _walkedPages = [initialPage];
+        _walkedResults = initialPage.Results.ToList();
 
         #endregion
     }
@@ -51,6 +57,20 @@ internal sealed class SearchResultPageSession
     /// <summary>Gets the latest successfully validated service response.</summary>
     /// <remarks>The value changes only after a successful continuation response has been accepted.</remarks>
     public SearchResponse CurrentPage { get; private set; }
+
+    /**************************************************************/
+    /// <summary>Gets the unchanged request context used for every walked result page.</summary>
+    public SearchRequest Request => _request;
+
+    /**************************************************************/
+    /// <summary>Gets every successfully walked service page in result-page order.</summary>
+    /// <remarks>The collection includes the initial response and is retained for explicit export.</remarks>
+    public IReadOnlyList<SearchResponse> WalkedPages => _walkedPages.AsReadOnly();
+
+    /**************************************************************/
+    /// <summary>Gets every record from every successfully walked page in service order.</summary>
+    /// <remarks>Records are preserved exactly as returned, including duplicate records across pages.</remarks>
+    public IReadOnlyList<JsonElement> WalkedResults => _walkedResults.AsReadOnly();
 
     /**************************************************************/
     /// <summary>Gets the exact live dataset associated with the stable query context.</summary>
@@ -107,7 +127,26 @@ internal sealed class SearchResultPageSession
         // validation; callers can safely retry or leave the pager after any expected failure.
         if (result.Status == OperationStatus.Success)
         {
-            CurrentPage = result.Value!;
+            var nextPage = result.Value!;
+
+            if (_walkedResults.Count > MaximumWalkedResults - nextPage.Results.Count)
+            {
+                // Excel cannot represent more than 1,048,575 data rows beneath a header, so reject
+                // the next page before mutating state rather than saving an incomplete walk later.
+                return OperationResult<SearchResponse>.Failure(
+                [new OperationMessage
+                {
+                    Code = "isearch.paging.limit",
+                    Message = "The walked iSearch results exceed Excel's maximum worksheet row capacity.",
+                    Severity = OperationMessageSeverity.Error
+                }]);
+            }
+
+            // Append before exposing the new current page so the session's page and aggregate state
+            // advance as one transition; a failed operation never changes either collection.
+            _walkedPages.Add(nextPage);
+            _walkedResults.AddRange(nextPage.Results);
+            CurrentPage = nextPage;
         }
 
         return result;

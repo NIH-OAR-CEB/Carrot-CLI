@@ -90,7 +90,7 @@ internal sealed class ApplicationFooterRenderer
         // The blank line separates the summary from records or prompts above it in every caller.
         _console.WriteLine();
         _console.Write(new Panel(table)
-            .Header("[bold grey] Summary [/]")
+            .Header("[bold grey] Search Summary [/]")
             .Border(BoxBorder.Rounded)
             .BorderStyle(new Style(Color.Grey)));
         _console.WriteLine();

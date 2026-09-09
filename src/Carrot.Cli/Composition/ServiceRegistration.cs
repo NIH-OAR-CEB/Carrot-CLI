@@ -133,10 +133,15 @@ internal static class ServiceRegistration
         services.AddSingleton<ExcelOutputPathResolver>();
         services.AddSingleton<ExcelOutputPathSuggester>();
         services.AddSingleton<ProcessedDocumentReportMapper>();
-        services.AddSingleton<IExcelReportWriter, ExcelReportWriter>();
+        services.AddSingleton<ExcelReportWriter>();
+        services.AddSingleton<IExcelReportWriter>(provider => provider.GetRequiredService<ExcelReportWriter>());
+        services.AddSingleton<IExcelWorkbookWriter>(provider => provider.GetRequiredService<ExcelReportWriter>());
         services.AddSingleton<IJsonArtifactWriter, JsonArtifactWriter>();
         services.AddTransient<IProcessedResultsExporter, ProcessedResultsExporter>();
         services.AddTransient<ProcessedResultsExportFlow>();
+        services.AddSingleton<SearchResultsReportMapper>();
+        services.AddTransient<ISearchResultsExporter, SearchResultsExporter>();
+        services.AddTransient<ISearchResultsExportFlow, SearchResultsExportFlow>();
         services.AddTransient<ProcessDocumentsMenu>();
         services.AddTransient<InteractiveMenu>();
 

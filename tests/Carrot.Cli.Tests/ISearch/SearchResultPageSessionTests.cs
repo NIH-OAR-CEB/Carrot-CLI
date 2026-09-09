@@ -34,6 +34,8 @@ public sealed class SearchResultPageSessionTests
         Assert.Equal(1, client.NextPageCalls);
         Assert.Equal("next", client.LastCursor);
         Assert.Equal(2, client.LastPageNumber);
+        Assert.Equal(2, session.WalkedPages.Count);
+        Assert.Equal(["first", "second"], session.WalkedResults.Select(item => item.GetProperty("title").GetString()));
 
         #endregion
     }
@@ -64,6 +66,8 @@ public sealed class SearchResultPageSessionTests
         Assert.Same(firstPage, session.CurrentPage);
         Assert.True(session.CanFetchNextPage);
         Assert.Equal(1, client.NextPageCalls);
+        Assert.Single(session.WalkedPages);
+        Assert.Equal("first", session.WalkedResults[0].GetProperty("title").GetString());
 
         #endregion
     }

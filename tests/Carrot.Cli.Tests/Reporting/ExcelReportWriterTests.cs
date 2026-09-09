@@ -203,6 +203,63 @@ public sealed class ExcelReportWriterTests
     }
 
     /**************************************************************/
+    /// <summary>Verifies the shared writer persists dynamic iSearch columns with safe native cell types.</summary>
+    [Fact]
+    public async Task WriteAsync_GenericTable_PreservesColumnsTypesAndFormulaSafety()
+    {
+        #region implementation
+
+        var root = createTemporaryDirectory();
+        try
+        {
+            var outputPath = Path.Combine(root, "isearch.xlsx");
+            var request = new ExcelWorkbookRequest
+            {
+                OutputPath = outputPath,
+                Columns =
+                [
+                    new() { Name = "ResultPage", Width = 16D },
+                    new() { Name = "title", Width = 36D, WrapText = true },
+                    new() { Name = "count", Width = 16D },
+                    new() { Name = "active", Width = 16D },
+                    new() { Name = "nested", Width = 36D, WrapText = true }
+                ],
+                Rows =
+                [
+                    new ExcelCellValue[]
+                    {
+                        ExcelCellValue.Integer(2),
+                        ExcelCellValue.Text("=unsafe"),
+                        ExcelCellValue.Long(42),
+                        ExcelCellValue.Boolean(true),
+                        ExcelCellValue.Text("{\"id\":1}")
+                    }
+                ]
+            };
+
+            await new ExcelReportWriter(new AtomicFileWriter()).WriteAsync(
+                request,
+                TestContext.Current.CancellationToken);
+
+            using var workbook = new XLWorkbook(outputPath);
+            var worksheet = Assert.Single(workbook.Worksheets);
+            Assert.Equal("=unsafe", worksheet.Cell(2, 2).GetString());
+            Assert.Equal(XLDataType.Text, worksheet.Cell(2, 2).DataType);
+            Assert.False(worksheet.Cell(2, 2).HasFormula);
+            Assert.Equal(XLDataType.Number, worksheet.Cell(2, 3).DataType);
+            Assert.Equal(XLDataType.Boolean, worksheet.Cell(2, 4).DataType);
+            Assert.True(worksheet.Cell(2, 5).Style.Alignment.WrapText);
+            Assert.True(worksheet.AutoFilter.IsEnabled);
+        }
+        finally
+        {
+            deleteTemporaryDirectory(root);
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Creates one isolated workbook directory.</summary>
     /// <returns>The absolute directory path.</returns>
     private static string createTemporaryDirectory()
