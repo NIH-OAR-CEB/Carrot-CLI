@@ -6,10 +6,11 @@ using Spectre.Console;
 namespace Carrot.Cli.Cli.UI;
 
 /**************************************************************/
-/// <summary>Renders iSearch counts and generic JSON records in terminal-sized pages.</summary>
+/// <summary>Renders a colored cardinality summary and generic JSON records in terminal-sized pages.</summary>
 /// <remarks>
 /// Records are serialized without terminal markup interpretation and remain in memory only for
-/// the current workflow visit. The page size is bounded by the active terminal height.
+/// the current workflow visit. The page size is bounded by the active terminal height, leaving a
+/// reserved summary region before the navigation prompt.
 /// </remarks>
 /// <seealso cref="SearchResponse"/>
 /// <seealso cref="ISearchResultsPager"/>
@@ -20,6 +21,7 @@ internal sealed class SearchResultsPager : ISearchResultsPager
     private const int MinimumPageSize = 5;
     private const int MaximumPageSize = 30;
     private const int ReservedTerminalRows = 9;
+    private const int CardinalitySummaryRows = 3;
     private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
     private readonly IAnsiConsole _console;
 
@@ -54,7 +56,7 @@ internal sealed class SearchResultsPager : ISearchResultsPager
     }
 
     /**************************************************************/
-    /// <summary>Displays configured cardinality and response records with bounded terminal navigation.</summary>
+    /// <summary>Displays a separated cardinality summary, response records, and bounded navigation.</summary>
     /// <param name="response">The validated response to render.</param>
     /// <param name="cardinalityFieldNames">The configured labels for the common cardinality values.</param>
     /// <param name="cancellationToken">The token signaling console cancellation.</param>
@@ -69,8 +71,12 @@ internal sealed class SearchResultsPager : ISearchResultsPager
         ArgumentNullException.ThrowIfNull(response);
         ArgumentNullException.ThrowIfNull(cardinalityFieldNames);
 
-        // Reserve prompt rows so records do not scroll the navigation controls off the terminal.
-        var pageSize = Math.Clamp(_console.Profile.Height - ReservedTerminalRows, MinimumPageSize, MaximumPageSize);
+        // Reserve prompt rows and the cardinality summary so the active results view keeps its
+        // navigation controls usable when the terminal is shorter than the normal page height.
+        var pageSize = Math.Clamp(
+            _console.Profile.Height - ReservedTerminalRows - CardinalitySummaryRows,
+            MinimumPageSize,
+            MaximumPageSize);
         var lines = new List<string>();
 
         // Serialize each record independently so page navigation can operate on display lines without changing JSON values.
@@ -87,16 +93,14 @@ internal sealed class SearchResultsPager : ISearchResultsPager
         // cardinality header and the corresponding bounded slice of records.
         while (true)
         {
-            var cardinality = response.Cardinality;
-            _console.WriteLine(
-                $"{cardinalityFieldNames.TotalResultsFieldName}: {cardinality.TotalResults} | "
-                + $"{cardinalityFieldNames.CurrentResultsFieldName}: {cardinality.CurrentResults} | "
-                + $"{cardinalityFieldNames.PageNumberFieldName}: {cardinality.PageNumber} of "
-                + $"{cardinalityFieldNames.TotalPagesFieldName}: {cardinality.TotalPages}");
+            // Leave a visual break after the preceding informational output, then render the summary
+            // before records so the counts remain immediately associated with the completed request.
+            _console.WriteLine();
+            _console.Write(createCardinalitySummary(response.Cardinality, cardinalityFieldNames));
+            _console.WriteLine();
 
-            // Zero results still produce a cardinality header, but there are no record lines to
-            // slice. The explicit message makes an empty successful walk distinguishable from a
-            // missing or malformed response.
+            // Zero results still produce the colored summary, but there are no record lines to slice.
+            // The explicit message makes an empty successful walk distinguishable from a malformed response.
             if (response.Results.Count == 0)
             {
                 _console.WriteLine("No records matched the query.");
@@ -165,6 +169,35 @@ internal sealed class SearchResultsPager : ISearchResultsPager
                     throw new InvalidOperationException($"Unsupported iSearch results action: {selected}");
             }
         }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Builds the colored summary that keeps result-walk cardinality visible above navigation.</summary>
+    /// <param name="cardinality">The typed counts and result-page values reported by iSearch.</param>
+    /// <param name="fieldNames">The configured labels for the cardinality values.</param>
+    /// <returns>A bounded panel containing literal cardinality text.</returns>
+    private static Panel createCardinalitySummary(
+        SearchCardinality cardinality,
+        SearchCardinalityFieldNames fieldNames)
+    {
+        #region implementation
+
+        // Keep the configured labels and service values literal inside the panel so configuration or
+        // response text cannot be interpreted as Spectre markup.
+        var summary =
+            $"{fieldNames.TotalResultsFieldName}: {cardinality.TotalResults} | "
+            + $"{fieldNames.CurrentResultsFieldName}: {cardinality.CurrentResults} | "
+            + $"{fieldNames.PageNumberFieldName}: {cardinality.PageNumber} of "
+            + $"{fieldNames.TotalPagesFieldName}: {cardinality.TotalPages}";
+
+        // A panel gives the footer a stable visual boundary and a distinct color without requiring
+        // a live display that would compete with the existing interactive selection prompt.
+        return new Panel(new Text(summary, new Style(Color.White)))
+            .Header("[bold cyan1]Result Cardinality[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderStyle(new Style(Color.Cyan1));
 
         #endregion
     }

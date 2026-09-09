@@ -105,6 +105,7 @@ public sealed class InteractiveISearchFlowTests
         Assert.Equal(100, client.LastSearch.Rows);
         Assert.Contains("Select Return Dataset", console.Output, StringComparison.Ordinal);
         Assert.Contains("Summaries", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Result Cardinality", console.Output, StringComparison.Ordinal);
         Assert.Contains("returnedCount: 1", console.Output, StringComparison.Ordinal);
         Assert.Contains("A result", console.Output, StringComparison.Ordinal);
 
