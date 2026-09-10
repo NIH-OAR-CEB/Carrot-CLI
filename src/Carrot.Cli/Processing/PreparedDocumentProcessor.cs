@@ -19,42 +19,22 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
     #region implementation
 
     private readonly ClusterRequestFactory _requestFactory;
-    private readonly ClusteringConfigurationResolver _configurationResolver;
-    private readonly ClusteringConfigurationValidator _configurationValidator;
-    private readonly ICarrotApiClient _apiClient;
-    private readonly ClusterMembershipMapper _membershipMapper;
-    private readonly IRunIdProvider _runIdProvider;
+    private readonly ICarrotCategorizer _categorizer;
 
     /**************************************************************/
     /// <summary>Initializes prepared-item processing with its request, HTTP, and mapping boundaries.</summary>
     /// <param name="requestFactory">The shared preview and submission request factory.</param>
-    /// <param name="configurationResolver">The selection-default and parameter-file resolver.</param>
-    /// <param name="configurationValidator">The exact Carrot list-response selection validator.</param>
-    /// <param name="apiClient">The host-managed Carrot HTTP boundary.</param>
-    /// <param name="membershipMapper">The recursive membership validator and mapper.</param>
-    /// <param name="runIdProvider">The successful-run correlation identifier provider.</param>
+    /// <param name="categorizer">The shared list-first Carrot categorization boundary.</param>
     public PreparedDocumentProcessor(
         ClusterRequestFactory requestFactory,
-        ClusteringConfigurationResolver configurationResolver,
-        ClusteringConfigurationValidator configurationValidator,
-        ICarrotApiClient apiClient,
-        ClusterMembershipMapper membershipMapper,
-        IRunIdProvider runIdProvider)
+        ICarrotCategorizer categorizer)
     {
         #region implementation
 
         ArgumentNullException.ThrowIfNull(requestFactory);
-        ArgumentNullException.ThrowIfNull(configurationResolver);
-        ArgumentNullException.ThrowIfNull(configurationValidator);
-        ArgumentNullException.ThrowIfNull(apiClient);
-        ArgumentNullException.ThrowIfNull(membershipMapper);
-        ArgumentNullException.ThrowIfNull(runIdProvider);
+        ArgumentNullException.ThrowIfNull(categorizer);
         _requestFactory = requestFactory;
-        _configurationResolver = configurationResolver;
-        _configurationValidator = configurationValidator;
-        _apiClient = apiClient;
-        _membershipMapper = membershipMapper;
-        _runIdProvider = runIdProvider;
+        _categorizer = categorizer;
 
         #endregion
     }
@@ -73,122 +53,47 @@ internal sealed class PreparedDocumentProcessor : IPreparedDocumentProcessor
         ArgumentNullException.ThrowIfNull(request);
         if (request.PreparedBatch.Documents.Count == 0)
         {
-            return failure("processing.no-ready-documents", "No successfully prepared documents are available to process.");
+            return OperationResult<ProcessedDocumentBatch>.Failure(
+            [new OperationMessage
+            {
+                Code = "processing.no-ready-documents",
+                Message = "No successfully prepared documents are available to process.",
+                Severity = OperationMessageSeverity.Error
+            }]);
         }
 
-        var resolvedResult = await _configurationResolver.ResolveAsync(
-            request.Clustering,
+        var categorization = await _categorizer.CategorizeAsync(
+            new CarrotCategorizationRequest
+            {
+                Endpoint = request.Endpoint,
+                Documents = _requestFactory.CreateDocuments(request.PreparedBatch.Documents),
+                Clustering = request.Clustering,
+                Timeout = request.Timeout
+            },
             cancellationToken).ConfigureAwait(false);
-        if (resolvedResult.Value is not { } resolvedConfiguration)
+        if (categorization.Value is not { } categoryResult)
         {
-            return OperationResult<ProcessedDocumentBatch>.Failure(resolvedResult.Messages);
+            return OperationResult<ProcessedDocumentBatch>.Failure(categorization.Messages);
         }
 
-        var clusterRequest = _requestFactory.Create(request.PreparedBatch.Documents, resolvedConfiguration);
-        var configurationResult = await _apiClient.GetConfigurationAsync(
-            request.Endpoint,
-            request.Timeout,
-            indent: null,
-            cancellationToken).ConfigureAwait(false);
-        if (configurationResult.Value is not { } configuration)
-        {
-            return failureAtStage(
-                "processing.list.failure",
-                "The Carrot service configuration could not be retrieved.",
-                configurationResult.Messages);
-        }
-
-        var validationResult = _configurationValidator.Validate(resolvedConfiguration, configuration);
-        if (validationResult.Status == OperationStatus.Failure)
-        {
-            return OperationResult<ProcessedDocumentBatch>.Failure(validationResult.Messages);
-        }
-
-        var clusterResult = await _apiClient.ClusterAsync(
-            request.Endpoint,
-            clusterRequest,
-            resolvedConfiguration.Template,
-            request.Timeout,
-            indent: null,
-            cancellationToken).ConfigureAwait(false);
-        if (clusterResult.Value is not { } response)
-        {
-            return failureAtStage(
-                "processing.cluster.failure",
-                "The Carrot clustering request did not complete.",
-                clusterResult.Messages);
-        }
-
-        var membershipResult = _membershipMapper.Map(response, clusterRequest.Documents.Count);
-        if (membershipResult.Value is not { } memberships)
-        {
-            return OperationResult<ProcessedDocumentBatch>.Failure(membershipResult.Messages);
-        }
-
-        var membershipsByDocument = memberships
-            .GroupBy(membership => membership.CarrotDocumentIndex)
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyList<Reporting.ClusterMembership>)Array.AsReadOnly(group.ToArray()));
         var rows = request.PreparedBatch.Documents
             .Select((document, index) => new ProcessedDocumentRow
             {
                 CarrotDocumentIndex = index,
                 PreparedDocument = document,
-                Memberships = membershipsByDocument.TryGetValue(index, out var documentMemberships)
-                    ? documentMemberships
-                    : Array.Empty<Reporting.ClusterMembership>()
+                Memberships = categoryResult.MembershipsByDocument[index]
             })
             .ToArray();
 
         return OperationResult<ProcessedDocumentBatch>.Success(new ProcessedDocumentBatch
         {
-            RunId = _runIdProvider.Create(),
+            RunId = categoryResult.RunId,
             Endpoint = request.Endpoint,
-            Request = clusterRequest,
-            Template = resolvedConfiguration.Template,
-            Response = response,
+            Request = categoryResult.Request,
+            Template = categoryResult.Configuration.Template,
+            Response = categoryResult.Response,
             Rows = Array.AsReadOnly(rows)
         });
-
-        #endregion
-    }
-
-    /**************************************************************/
-    /// <summary>Creates one structured prepared-processing failure.</summary>
-    /// <param name="code">The stable processing error code.</param>
-    /// <param name="message">The safe user-facing failure message.</param>
-    /// <returns>A failed processed-batch result.</returns>
-    private static OperationResult<ProcessedDocumentBatch> failure(string code, string message)
-    {
-        #region implementation
-
-        return OperationResult<ProcessedDocumentBatch>.Failure(
-            [new OperationMessage { Code = code, Message = message, Severity = OperationMessageSeverity.Error }]);
-
-        #endregion
-    }
-
-    /**************************************************************/
-    /// <summary>Preserves a dependency failure while recording the operation stage needed for exit-code mapping.</summary>
-    /// <param name="code">The stable processing-stage failure code.</param>
-    /// <param name="message">The safe stage-level diagnostic.</param>
-    /// <param name="messages">The original dependency diagnostics.</param>
-    /// <returns>A failure containing the original and stage-specific diagnostics.</returns>
-    private static OperationResult<ProcessedDocumentBatch> failureAtStage(
-        string code,
-        string message,
-        IReadOnlyList<OperationMessage> messages)
-    {
-        #region implementation
-
-        return OperationResult<ProcessedDocumentBatch>.Failure(
-            messages.Concat([new OperationMessage
-            {
-                Code = code,
-                Message = message,
-                Severity = OperationMessageSeverity.Error
-            }]).ToArray());
 
         #endregion
     }

@@ -20,6 +20,15 @@ every result page walked during the current query, including pages loaded by **F
 fields. Scalar or array records are retained as JSON text in `Value`; duplicate records remain in
 service order. Save does not fetch another page, write credentials, or create a sidecar.
 
+**Save Categorized iSearch Results to Excel** creates the following `Results` worksheet columns:
+
+```text
+ResultPage, ResultOrdinal, nihApplId, title, abstract, specificAims,
+CategoryCount, CategoryPaths, CategoryScores, CategoryMembershipsJson
+```
+
+The four iSearch fields are copied from the retained result records. Assigned records produce one row per membership; unassigned records produce one row with blank category path and score values. The categorized export uses the same formula-safe text handling, overwrite confirmation, and atomic workbook persistence as the other interactive Excel exports.
+
 ## Command-line usage
 
 Display the Excel column contract before configuring an import:

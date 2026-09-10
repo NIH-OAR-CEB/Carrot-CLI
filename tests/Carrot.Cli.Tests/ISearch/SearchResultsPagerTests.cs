@@ -237,6 +237,55 @@ public sealed class SearchResultsPagerTests
     }
 
     /**************************************************************/
+    /// <summary>Ensures categorization receives the same loaded session without fetching more records.</summary>
+    [Fact]
+    public async Task ShowAsync_CategorizeActionUsesRetainedSession()
+    {
+        #region implementation
+
+        // Arrange
+        using var console = createConsole();
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Escape);
+        var categorizationFlow = new CapturingCategorizationFlow();
+        var session = new SearchResultPageSession(
+            new StubClient(),
+            new SearchRequest
+            {
+                Dataset = "grants",
+                Query = "example",
+                Fields = ["nihApplId", "title", "abstract", "specificAims"],
+                Rows = 100
+            },
+            new SearchResponse
+            {
+                Cardinality = new SearchCardinality
+                {
+                    TotalResults = 1,
+                    CurrentResults = 1,
+                    PageNumber = 1,
+                    TotalPages = 1
+                },
+                Results = [System.Text.Json.JsonSerializer.SerializeToElement(new { title = "loaded" })]
+            });
+
+        // Act
+        await new SearchResultsPager(
+                console,
+                new ApplicationFooterRenderer(console),
+                categorizationFlow: categorizationFlow,
+                categorizedResultsPager: new StubCategorizedResultsPager())
+            .ShowAsync(session, createFieldNames(), CancellationToken.None);
+
+        // Assert
+        Assert.Same(session, categorizationFlow.Session);
+        Assert.Contains("Categorize iSearch Results", console.Output, StringComparison.Ordinal);
+        Assert.Single(session.WalkedResults);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Ensures an export flow with its own prompt runs after LiveDisplay releases the console.</summary>
     [Fact]
     public async Task ShowAsync_SaveActionReleasesLiveDisplayBeforeExportPrompt()
@@ -315,6 +364,55 @@ public sealed class SearchResultsPagerTests
         PageNumberFieldName = "pageNumber",
         TotalPagesFieldName = "totalPages"
     };
+
+    /**************************************************************/
+    /// <summary>Captures the loaded session passed to the categorization flow.</summary>
+    private sealed class CapturingCategorizationFlow : ISearchResultsCategorizationFlow
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Gets the session supplied by the pager.</summary>
+        public SearchResultPageSession? Session { get; private set; }
+
+        /**************************************************************/
+        /// <summary>Captures the session and returns an expected test failure.</summary>
+        /// <param name="session">The loaded iSearch session.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A failure so the test does not enter categorized paging.</returns>
+        public Task<OperationResult<CategorizedISearchResultBatch>> RunAsync(
+            SearchResultPageSession session,
+            CancellationToken cancellationToken)
+        {
+            Session = session;
+            return Task.FromResult(OperationResult<CategorizedISearchResultBatch>.Failure(
+                [new OperationMessage
+                {
+                    Code = "test.categorization",
+                    Message = "Expected test failure.",
+                    Severity = OperationMessageSeverity.Error
+                }]));
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Provides a categorized pager that should not be reached after a failed categorization.</summary>
+    private sealed class StubCategorizedResultsPager : ICategorizedISearchResultsPager
+    {
+        #region implementation
+
+        /**************************************************************/
+        /// <summary>Completes without rendering because the categorization flow failed.</summary>
+        /// <param name="batch">The unused categorized batch.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A completed display task.</returns>
+        public Task ShowAsync(CategorizedISearchResultBatch batch, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        #endregion
+    }
 
     /**************************************************************/
     /// <summary>Provides deterministic iSearch responses for pager tests.</summary>

@@ -74,19 +74,56 @@ internal sealed class ClusterRequestFactory
 
         ArgumentNullException.ThrowIfNull(documents);
         ArgumentNullException.ThrowIfNull(configuration);
+        return CreateFromCarrotDocuments(CreateDocuments(documents), configuration);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Creates one request from already mapped Carrot documents and resolved configuration.</summary>
+    /// <param name="documents">The ordered source-specific documents to submit.</param>
+    /// <param name="configuration">The resolved direct or template clustering configuration.</param>
+    /// <returns>The complete request with configuration and document fields.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="documents"/> or <paramref name="configuration"/> is null.
+    /// </exception>
+    /// <seealso cref="CarrotCategorizationRequest"/>
+    internal ClusterRequest CreateFromCarrotDocuments(
+        IReadOnlyList<ClusterDocument> documents,
+        ClusteringConfiguration configuration)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(documents);
+        ArgumentNullException.ThrowIfNull(configuration);
         return new ClusterRequest
         {
             Language = configuration.Language,
             Algorithm = configuration.Algorithm,
             Parameters = configuration.Parameters,
-            Documents = documents
-                .Select(document => new ClusterDocument
-                {
-                    Title = document.Title,
-                    Content = document.Content
-                })
-                .ToArray()
+            Documents = documents.ToArray()
         };
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Maps prepared documents to Carrot wire documents without configuration fields.</summary>
+    /// <param name="documents">The successfully extracted documents in submission order.</param>
+    /// <returns>Documents containing only title and complete extracted content.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="documents"/> is null.</exception>
+    internal IReadOnlyList<ClusterDocument> CreateDocuments(IReadOnlyList<ExtractedDocument> documents)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(documents);
+        return documents
+            .Select(document => new ClusterDocument
+            {
+                Title = document.Title,
+                Content = document.Content
+            })
+            .ToArray();
 
         #endregion
     }

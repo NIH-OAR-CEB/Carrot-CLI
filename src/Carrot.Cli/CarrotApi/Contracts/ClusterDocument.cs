@@ -9,8 +9,9 @@ namespace Carrot.Cli.CarrotApi.Contracts;
 /// </summary>
 /// <remarks>
 /// The Carrot OpenAPI schema declares document values as strings, while its own example also
-/// demonstrates a string array. <see cref="JsonElement"/> preserves both documented shapes and
-/// any future JSON-compatible field value without placing client correlation metadata on the wire.
+/// demonstrates a string array. <see cref="JsonElement"/> preserves both documented shapes at
+/// this contract boundary; source adapters remain responsible for normalizing any scalar values
+/// before they are sent to the service.
 /// </remarks>
 internal sealed record ClusterDocument
 {
@@ -46,7 +47,8 @@ internal sealed record ClusterDocument
     /// </summary>
     /// <remarks>
     /// Extension data supports examples such as <c>field1: "value1"</c> and
-    /// <c>field3: ["value 1", "value 2"]</c> without introducing a wrapper property.
+    /// <c>field3: ["value 1", "value 2"]</c> without introducing a wrapper property. Values
+    /// sent to Carrot must be strings or arrays of strings.
     /// </remarks>
     /// <seealso cref="JsonExtensionDataAttribute"/>
     [JsonExtensionData]

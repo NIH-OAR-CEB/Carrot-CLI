@@ -37,6 +37,21 @@ internal sealed class ExcelOutputPathSuggester
     {
         #region implementation
 
+        return Suggest("carrot-results");
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Creates a complete `.xlsx` path using the supplied safe filename stem.</summary>
+    /// <param name="fileNameStem">The nonempty filename stem without an extension.</param>
+    /// <returns>An absolute path under an existing, operator-friendly directory.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="fileNameStem"/> is empty.</exception>
+    internal string Suggest(string fileNameStem)
+    {
+        #region implementation
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileNameStem);
         var documentsDirectory = Environment.GetFolderPath(
             Environment.SpecialFolder.MyDocuments,
             Environment.SpecialFolderOption.DoNotVerify);
@@ -48,7 +63,7 @@ internal sealed class ExcelOutputPathSuggester
             .GetLocalNow()
             .ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
 
-        return Path.GetFullPath(Path.Combine(outputDirectory, $"carrot-results-{timestamp}.xlsx"));
+        return Path.GetFullPath(Path.Combine(outputDirectory, $"{fileNameStem}-{timestamp}.xlsx"));
 
         #endregion
     }

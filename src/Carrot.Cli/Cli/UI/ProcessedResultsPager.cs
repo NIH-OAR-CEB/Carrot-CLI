@@ -22,27 +22,6 @@ internal sealed class ProcessedResultsPager
     private readonly ProcessedResultsExportFlow _exportFlow;
 
     /**************************************************************/
-    /// <summary>Defines stable navigation actions available below every processed page.</summary>
-    private enum PageChoice
-    {
-        /**************************************************************/
-        /// <summary>Displays the following page.</summary>
-        Next,
-
-        /**************************************************************/
-        /// <summary>Displays the preceding page.</summary>
-        Previous,
-
-        /**************************************************************/
-        /// <summary>Saves the complete retained processed result to an operator-selected Excel workbook.</summary>
-        Save,
-
-        /**************************************************************/
-        /// <summary>Returns to retained prepared-batch actions.</summary>
-        Back
-    }
-
-    /**************************************************************/
     /// <summary>Initializes processed-result paging with the interactive console, page size, and Excel export flow.</summary>
     /// <param name="console">The console receiving tables and navigation prompts.</param>
     /// <param name="options">The validated shared five-row paging configuration.</param>
@@ -74,68 +53,18 @@ internal sealed class ProcessedResultsPager
         #region implementation
 
         ArgumentNullException.ThrowIfNull(batch);
-        var pageCount = Math.Max(1, (batch.Rows.Count + _pageSize - 1) / _pageSize);
-        var pageIndex = 0;
-
-        while (true)
-        {
-            renderPage(batch, pageIndex, pageCount);
-            var choices = new List<PageChoice>();
-            if (pageIndex + 1 < pageCount)
-            {
-                // Spectre selects the first entry by default, so forward navigation comes first.
-                choices.Add(PageChoice.Next);
-            }
-            else
-            {
-                // Saving is the natural next action after reviewing the final result page.
-                choices.Add(PageChoice.Save);
-            }
-
-            if (pageIndex > 0)
-            {
-                choices.Add(PageChoice.Previous);
-            }
-
-            if (!choices.Contains(PageChoice.Save))
-            {
-                choices.Add(PageChoice.Save);
-            }
-
-            choices.Add(PageChoice.Back);
-            var selected = await new SelectionPrompt<PageChoice>()
-                .Title($"[bold orange1]Processed Results[/] — Page {pageIndex + 1} of {pageCount}")
-                .HighlightStyle(new Style(Color.Black, Color.Orange1))
-                .UseConverter(choice => choice switch
-                {
-                    PageChoice.Next => "Next Page",
-                    PageChoice.Previous => "Previous Page",
-                    PageChoice.Save => "Save Processed Results to Excel",
-                    PageChoice.Back => "Back to Batch Actions",
-                    _ => choice.ToString()
-                })
-                .AddChoices(choices)
-                .AddCancelResult(PageChoice.Back)
-                .ShowAsync(_console, cancellationToken)
-                .ConfigureAwait(false);
-
-            switch (selected)
-            {
-                case PageChoice.Next:
-                    pageIndex++;
-                    break;
-                case PageChoice.Previous:
-                    pageIndex--;
-                    break;
-                case PageChoice.Save:
-                    await _exportFlow.RunAsync(batch, cancellationToken).ConfigureAwait(false);
-                    break;
-                case PageChoice.Back:
-                    return;
-                default:
-                    throw new InvalidOperationException($"Unsupported processed-results action: {selected}");
-            }
-        }
+        await PagedResultNavigator.ShowAsync(
+                _console,
+                batch.Rows.Count,
+                _pageSize,
+                "Processed Results",
+                "Save Processed Results to Excel",
+                "Back to Batch Actions",
+                selectSaveByDefaultOnFinalPage: true,
+                (pageIndex, pageCount) => renderPage(batch, pageIndex, pageCount),
+                token => _exportFlow.RunAsync(batch, token),
+                cancellationToken)
+            .ConfigureAwait(false);
 
         #endregion
     }

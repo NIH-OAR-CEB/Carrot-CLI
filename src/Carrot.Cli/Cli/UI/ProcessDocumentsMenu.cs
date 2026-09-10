@@ -20,8 +20,6 @@ internal sealed class ProcessDocumentsMenu
 {
     #region implementation
 
-    private const string DefaultServiceEndpoint = "http://localhost:8080/service";
-
     private readonly IAnsiConsole _console;
     private readonly HelpRenderer _helpRenderer;
     private readonly InputPathNormalizer _pathNormalizer;
@@ -541,20 +539,12 @@ internal sealed class ProcessDocumentsMenu
     {
         #region implementation
 
-        var endpointText = await new TextPrompt<string>(
-                "Carrot service endpoint [grey](complete extracted text will be sent)[/]:")
-            .DefaultValue(DefaultServiceEndpoint)
-            .PromptStyle("yellow")
-            .Validate(value =>
-            {
-                var endpointResult = _endpointResolver.Resolve(value);
-                return endpointResult.Value is null
-                    ? ValidationResult.Error(endpointResult.Messages[0].Message)
-                    : ValidationResult.Success();
-            })
-            .ShowAsync(_console, cancellationToken)
+        var endpoint = await CarrotEndpointPrompt.PromptAsync(
+                _console,
+                _endpointResolver,
+                "Carrot service endpoint [grey](complete extracted text will be sent)[/]:",
+                cancellationToken)
             .ConfigureAwait(false);
-        var endpoint = _endpointResolver.Resolve(endpointText).Value!;
 
         _console.MarkupLine("[orange1]Validating Carrot configuration and processing the complete batch…[/]");
         var result = await _documentProcessor.ProcessAsync(

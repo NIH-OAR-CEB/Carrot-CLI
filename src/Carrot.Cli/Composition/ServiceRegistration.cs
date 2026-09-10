@@ -80,6 +80,7 @@ internal static class ServiceRegistration
         services.AddSingleton<RunSettingsResolver>();
         services.AddSingleton<ClusterMembershipMapper>();
         services.AddSingleton<IRunIdProvider, SystemRunIdProvider>();
+        services.AddTransient<ICarrotCategorizer, CarrotCategorizer>();
         services.AddTransient<IPreparedDocumentProcessor, PreparedDocumentProcessor>();
         services.AddHttpClient<ICarrotApiClient, CarrotApiClient>(client =>
             {
@@ -120,7 +121,11 @@ internal static class ServiceRegistration
         services.AddTransient<PreviewCommand>();
         services.AddTransient<ProcessCommand>();
         services.AddTransient<ServerInformationFlow>();
+        services.AddTransient<ISearchResultsCategorizer, SearchResultsCategorizer>();
+        services.AddTransient<ISearchResultsCategorizationFlow, SearchResultsCategorizationFlow>();
         services.AddTransient<ISearchResultsPager, SearchResultsPager>();
+        services.AddTransient<ICategorizedISearchResultsPager, CategorizedISearchResultsPager>();
+        services.AddTransient<ICategorizedISearchResultsExportFlow, CategorizedISearchResultsExportFlow>();
         services.AddTransient<ISearchFieldsPager, SearchFieldsPager>();
         services.AddTransient<ISearchFlow, InteractiveISearchFlow>();
         services.AddTransient<InteractivePreviewFlow>();
@@ -142,6 +147,8 @@ internal static class ServiceRegistration
         services.AddSingleton<SearchResultsReportMapper>();
         services.AddTransient<ISearchResultsExporter, SearchResultsExporter>();
         services.AddTransient<ISearchResultsExportFlow, SearchResultsExportFlow>();
+        services.AddSingleton<CategorizedISearchResultsReportMapper>();
+        services.AddTransient<ICategorizedISearchResultsExporter, CategorizedISearchResultsExporter>();
         services.AddTransient<ProcessDocumentsMenu>();
         services.AddTransient<InteractiveMenu>();
 

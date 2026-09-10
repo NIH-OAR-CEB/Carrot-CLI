@@ -346,13 +346,16 @@ public sealed class PreparedDocumentProcessorTests
         #region implementation
 
         var options = Options.Create(new CarrotCliOptions());
-        return new PreparedDocumentProcessor(
+        var categorizer = new CarrotCategorizer(
             new ClusterRequestFactory(options),
             new ClusteringConfigurationResolver(options),
             new ClusteringConfigurationValidator(),
             apiClient,
             new ClusterMembershipMapper(),
             new StubRunIdProvider(ExpectedRunId));
+        return new PreparedDocumentProcessor(
+            new ClusterRequestFactory(options),
+            categorizer);
 
         #endregion
     }

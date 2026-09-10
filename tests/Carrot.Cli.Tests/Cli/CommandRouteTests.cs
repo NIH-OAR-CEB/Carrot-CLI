@@ -5,6 +5,7 @@ using Carrot.Cli.Cli.UI;
 using Carrot.Cli.CarrotApi;
 using Carrot.Cli.Composition;
 using Carrot.Cli.Configuration;
+using Carrot.Cli.ISearch;
 using Carrot.Cli.Processing;
 using Carrot.Cli.Reporting;
 using Microsoft.Extensions.Configuration;
@@ -183,6 +184,7 @@ public sealed class CommandRouteTests
         Assert.NotNull(provider.GetRequiredService<HelpRenderer>());
         Assert.NotNull(provider.GetRequiredService<AboutRenderer>());
         Assert.NotNull(provider.GetRequiredService<ICarrotApiClient>());
+        Assert.NotNull(provider.GetRequiredService<ICarrotCategorizer>());
         Assert.NotNull(provider.GetRequiredService<IPreparedDocumentProcessor>());
         Assert.NotNull(provider.GetRequiredService<EndpointResolver>());
         Assert.NotNull(provider.GetRequiredService<RunSettingsResolver>());
@@ -200,6 +202,11 @@ public sealed class CommandRouteTests
         Assert.NotNull(provider.GetRequiredService<ProcessedResultsExportFlow>());
         Assert.NotNull(provider.GetRequiredService<ISearchResultsExporter>());
         Assert.NotNull(provider.GetRequiredService<ISearchResultsExportFlow>());
+        Assert.NotNull(provider.GetRequiredService<ISearchResultsCategorizer>());
+        Assert.NotNull(provider.GetRequiredService<ISearchResultsCategorizationFlow>());
+        Assert.NotNull(provider.GetRequiredService<ICategorizedISearchResultsPager>());
+        Assert.NotNull(provider.GetRequiredService<ICategorizedISearchResultsExportFlow>());
+        Assert.NotNull(provider.GetRequiredService<ICategorizedISearchResultsExporter>());
 
         #endregion
     }

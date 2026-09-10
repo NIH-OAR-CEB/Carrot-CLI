@@ -55,30 +55,19 @@ internal sealed class SearchResultsExportFlow : ISearchResultsExportFlow
 
         ArgumentNullException.ThrowIfNull(session);
 
-        var suggestedPath = _pathSuggester.Suggest();
-        var rawPath = await new TextPrompt<string>(
-                "Excel output path [grey](press Enter to accept the suggested .xlsx file; surrounding quotes are accepted)[/]:")
-            .DefaultValue(suggestedPath)
-            .PromptStyle("yellow")
-            .Validate(value => validatePath(value))
-            .ShowAsync(_console, cancellationToken)
+        var destination = await ExcelExportInteraction.PromptAsync(
+                _console,
+                _pathResolver,
+                _pathSuggester,
+                fileNameStem: null,
+                "Excel output path [grey](press Enter to accept the suggested .xlsx file; surrounding quotes are accepted)[/]:",
+                outputPath => $"Replace existing workbook [yellow]{Markup.Escape(outputPath)}[/]?",
+                "[yellow]Excel export cancelled; the existing workbook was not changed.[/]",
+                cancellationToken)
             .ConfigureAwait(false);
-        var outputPath = _pathResolver.Resolve(rawPath).Value!;
-        var overwrite = false;
-
-        if (File.Exists(outputPath))
+        if (destination is null)
         {
-            var overwritePrompt = new ConfirmationPrompt(
-                $"Replace existing workbook [yellow]{Markup.Escape(outputPath)}[/]?")
-            {
-                DefaultValue = false
-            };
-            overwrite = await overwritePrompt.ShowAsync(_console, cancellationToken).ConfigureAwait(false);
-            if (!overwrite)
-            {
-                _console.MarkupLine("[yellow]Excel export cancelled; the existing workbook was not changed.[/]");
-                return;
-            }
+            return;
         }
 
         _console.MarkupLine("[orange1]Saving iSearch results to Excel…[/]");
@@ -86,8 +75,8 @@ internal sealed class SearchResultsExportFlow : ISearchResultsExportFlow
             new SaveISearchResultsRequest
             {
                 Session = session,
-                OutputPath = outputPath,
-                Overwrite = overwrite
+                OutputPath = destination.OutputPath,
+                Overwrite = destination.Overwrite
             },
             cancellationToken).ConfigureAwait(false);
 
@@ -101,22 +90,6 @@ internal sealed class SearchResultsExportFlow : ISearchResultsExportFlow
         {
             _console.MarkupLine($"[red]iSearch Excel export failed:[/] {Markup.Escape(message.Message)}");
         }
-
-        #endregion
-    }
-
-    /**************************************************************/
-    /// <summary>Adapts shared path validation to Spectre.Console prompt validation.</summary>
-    /// <param name="value">The raw prompt value.</param>
-    /// <returns>A successful prompt result or the first safe validation message.</returns>
-    private ValidationResult validatePath(string value)
-    {
-        #region implementation
-
-        var result = _pathResolver.Resolve(value);
-        return result.Value is null
-            ? ValidationResult.Error(result.Messages[0].Message)
-            : ValidationResult.Success();
 
         #endregion
     }

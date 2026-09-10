@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.Processing;
 using Microsoft.Extensions.Options;
@@ -20,12 +18,6 @@ namespace Carrot.Cli.Reporting;
 internal sealed class ProcessedDocumentReportMapper
 {
     #region implementation
-
-    private static readonly JsonSerializerOptions MembershipJsonOptions = new()
-    {
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
 
     private readonly int _contentPreviewCharacterLimit;
 
@@ -139,7 +131,7 @@ internal sealed class ProcessedDocumentReportMapper
             CategoryScores = membership?.Score?.ToString("R", CultureInfo.InvariantCulture),
             CategoryMembershipsJson = membership is null
                 ? "[]"
-                : JsonSerializer.Serialize(new[] { membership }, MembershipJsonOptions)
+                : CategoryMembershipJsonFormatter.Serialize(membership)
         };
 
         #endregion

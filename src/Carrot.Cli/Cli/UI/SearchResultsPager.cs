@@ -31,6 +31,8 @@ internal sealed class SearchResultsPager : ISearchResultsPager
     private readonly IAnsiConsole _console;
     private readonly ApplicationFooterRenderer _footerRenderer;
     private readonly ISearchResultsExportFlow? _exportFlow;
+    private readonly ISearchResultsCategorizationFlow? _categorizationFlow;
+    private readonly ICategorizedISearchResultsPager? _categorizedResultsPager;
 
     /**************************************************************/
     /// <summary>Defines the independent terminal and service-data actions below one results view.</summary>
@@ -61,6 +63,10 @@ internal sealed class SearchResultsPager : ISearchResultsPager
         FetchAllPages,
 
         /**************************************************************/
+        /// <summary>Submits all currently loaded iSearch records to Carrot.</summary>
+        CategorizeResults,
+
+        /**************************************************************/
         /// <summary>Saves every service result page walked in the current session to Excel.</summary>
         /// <remarks>The action does not issue a continuation request or alter the current page.</remarks>
         SaveResults,
@@ -76,6 +82,8 @@ internal sealed class SearchResultsPager : ISearchResultsPager
     /// <param name="console">The console receiving literal counts, records, and prompts.</param>
     /// <param name="footerRenderer">The shared renderer for result-navigation status.</param>
     /// <param name="exportFlow">The optional explicit iSearch Excel export flow.</param>
+    /// <param name="categorizationFlow">The optional loaded-record Carrot categorization flow.</param>
+    /// <param name="categorizedResultsPager">The optional categorized-result display pager.</param>
     /// <remarks>
     /// The export flow is optional so the pager can be used in focused result-navigation contexts. When
     /// supplied, Save receives the same session that owns the accepted pages and records.
@@ -85,7 +93,9 @@ internal sealed class SearchResultsPager : ISearchResultsPager
     public SearchResultsPager(
         IAnsiConsole console,
         ApplicationFooterRenderer footerRenderer,
-        ISearchResultsExportFlow? exportFlow = null)
+        ISearchResultsExportFlow? exportFlow = null,
+        ISearchResultsCategorizationFlow? categorizationFlow = null,
+        ICategorizedISearchResultsPager? categorizedResultsPager = null)
     {
         #region implementation
 
@@ -94,6 +104,8 @@ internal sealed class SearchResultsPager : ISearchResultsPager
         _console = console;
         _footerRenderer = footerRenderer;
         _exportFlow = exportFlow;
+        _categorizationFlow = categorizationFlow;
+        _categorizedResultsPager = categorizedResultsPager;
 
         #endregion
     }
@@ -285,6 +297,12 @@ internal sealed class SearchResultsPager : ISearchResultsPager
                                 liveDisplay.AutoClear = true;
                                 return PageChoice.SaveResults;
 
+                            case PageChoice.CategorizeResults:
+                                // Leave LiveDisplay before the Carrot endpoint prompt and categorized
+                                // result pager acquire the console's exclusive input/output ownership.
+                                liveDisplay.AutoClear = true;
+                                return PageChoice.CategorizeResults;
+
                             case PageChoice.Back:
                                 // Clear the complete transient results target before the parent workflow redraws
                                 // the dataset menu; otherwise the old results actions remain visually adjacent
@@ -306,6 +324,25 @@ internal sealed class SearchResultsPager : ISearchResultsPager
                 // Export is intentionally outside LiveDisplay because its path and overwrite questions
                 // are TextPrompts, which cannot run while a dynamic display owns the console.
                 await _exportFlow.RunAsync(session, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            if (exitChoice == PageChoice.CategorizeResults
+                && _categorizationFlow is not null
+                && _categorizedResultsPager is not null)
+            {
+                // Categorization prompts and result paging need exclusive terminal ownership, so
+                // they run after the source result LiveDisplay has been released.
+                var categorizationResult = await _categorizationFlow
+                    .RunAsync(session, cancellationToken)
+                    .ConfigureAwait(false);
+                if (categorizationResult.Value is { } categorizedBatch)
+                {
+                    await _categorizedResultsPager
+                        .ShowAsync(categorizedBatch, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
                 continue;
             }
 
@@ -353,6 +390,11 @@ internal sealed class SearchResultsPager : ISearchResultsPager
         {
             choices.Add(PageChoice.FetchNextResultPage);
             choices.Add(PageChoice.FetchAllPages);
+        }
+
+        if (_categorizationFlow is not null && _categorizedResultsPager is not null && session.WalkedResults.Count > 0)
+        {
+            choices.Add(PageChoice.CategorizeResults);
         }
 
         // Save is supplied by composition and consumes retained data without issuing another request.
@@ -540,6 +582,7 @@ internal sealed class SearchResultsPager : ISearchResultsPager
             PageChoice.PreviousDisplayPage => "Previous Display Page",
             PageChoice.FetchNextResultPage => "Fetch Next Result Page",
             PageChoice.FetchAllPages => "Fetch All Pages",
+            PageChoice.CategorizeResults => "Categorize iSearch Results",
             PageChoice.SaveResults => "Save iSearch Results to Excel",
             PageChoice.Back => "Back to iSearch",
             _ => choice.ToString()
