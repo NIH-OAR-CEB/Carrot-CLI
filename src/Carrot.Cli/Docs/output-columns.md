@@ -15,7 +15,7 @@ The workbook contains one row per category membership in document and membership
 Named `preview` uses the atomic JSON writer for one complete indented UTF-8 request artifact after `/list` validation and never calls `/cluster`. Named `process` atomically writes this same workbook contract after one global `/cluster` request and, by default, exact request/response JSON sidecars with the workbook filename prefix. Existing destinations require explicit overwrite permission; failure or cancellation preserves the prior file and removes temporary output. `--no-json-artifacts` suppresses process sidecars. Interactive Excel export still creates no JSON sidecars.
 
 Interactive iSearch export uses the same workbook writer and creates one `Results` worksheet from
-every result page walked during the current query. Its first columns are `ResultPage` and
+every result page walked during the current query, including pages loaded by **Fetch All Pages**. Its first columns are `ResultPage` and
 `ResultOrdinal`, followed by the configured return fields and any additional returned object
 fields. Scalar or array records are retained as JSON text in `Value`; duplicate records remain in
 service order. Save does not fetch another page, write credentials, or create a sidecar.

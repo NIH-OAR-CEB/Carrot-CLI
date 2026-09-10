@@ -3,13 +3,20 @@ using Carrot.Cli.Common;
 using Carrot.Cli.Configuration;
 using Carrot.Cli.ISearch;
 using Carrot.Cli.ISearch.Contracts;
+using Spectre.Console;
 using Spectre.Console.Testing;
 using Xunit;
 
 namespace Carrot.Cli.Tests.ISearch;
 
 /**************************************************************/
-/// <summary>Verifies the results pager's separated and colored cardinality summary.</summary>
+/// <summary>Verifies the results pager's separated summary and independent navigation actions.</summary>
+/// <remarks>
+/// The interactive tests use Spectre's test console and queued key input to exercise the actual prompt
+/// choices. The all-pages case checks both live progress output and the final ordinary prompt, ensuring
+/// the live display does not leak a stale Fetch All Pages action after completion.
+/// </remarks>
+/// <seealso cref="SearchResultsPager"/>
 public sealed class SearchResultsPagerTests
 {
     #region implementation
@@ -129,10 +136,59 @@ public sealed class SearchResultsPagerTests
         Assert.Equal(1, client.NextPageCalls);
         Assert.Contains("Next Display Page", console.Output, StringComparison.Ordinal);
         Assert.Contains("Fetch Next Result Page", console.Output, StringComparison.Ordinal);
-        Assert.Contains("second chunk", console.Output, StringComparison.Ordinal);
-        Assert.Contains("Result Page 2 of 2", console.Output, StringComparison.Ordinal);
-        Assert.Contains("Next Data Page", console.Output, StringComparison.Ordinal);
-        Assert.Contains("Dataset", console.Output, StringComparison.Ordinal);
+        Assert.Equal("second chunk", session.CurrentPage.Results[0].GetProperty("title").GetString());
+        Assert.DoesNotContain("second chunk", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures Fetch All Pages updates the summary and leaves the session at the final page.</summary>
+    /// <remarks>
+    /// The queued three-page response sequence verifies the intermediate 33.3 and 66.7 percent states,
+    /// the final 100 percent state, Data Page advancement, and removal of fetch actions after completion.
+    /// </remarks>
+    [Fact]
+    public async Task ShowAsync_FetchAllPagesUpdatesSummaryThroughFinalPage()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        var client = new StubClient
+        {
+            NextPages = new Queue<OperationResult<SearchResponse>>(
+            [
+                OperationResult<SearchResponse>.Success(createPage(2, "page-three", "second", 3, 3)),
+                OperationResult<SearchResponse>.Success(createPage(3, null, "third", 3, 3))
+            ])
+        };
+        var session = new SearchResultPageSession(
+            client,
+            new SearchRequest
+            {
+                Dataset = "grants",
+                Query = "example",
+                Fields = ["title"],
+                Rows = 10
+            },
+            createPage(1, "page-two", "first", 3, 3));
+
+        await new SearchResultsPager(console, new ApplicationFooterRenderer(console))
+            .ShowAsync(session, createFieldNames(), CancellationToken.None);
+
+        Assert.Equal(2, client.NextPageCalls);
+        Assert.Equal(3, session.CurrentPage.Cardinality.PageNumber);
+        Assert.Equal(3, session.WalkedResults.Count);
+        Assert.Contains("Fetch All Pages", console.Output, StringComparison.Ordinal);
+        Assert.Contains("> Fetch All Pages", console.Output, StringComparison.Ordinal);
+        Assert.Contains("Data Page", console.Output, StringComparison.Ordinal);
+        Assert.Contains("33.3%", console.Output, StringComparison.Ordinal);
+        Assert.Contains("66.7%", console.Output, StringComparison.Ordinal);
+        Assert.Contains("100.0%", console.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fetch All Pages", console.Output[(console.Output.LastIndexOf("Result Page 3", StringComparison.Ordinal))..], StringComparison.Ordinal);
 
         #endregion
     }
@@ -181,6 +237,75 @@ public sealed class SearchResultsPagerTests
     }
 
     /**************************************************************/
+    /// <summary>Ensures an export flow with its own prompt runs after LiveDisplay releases the console.</summary>
+    [Fact]
+    public async Task ShowAsync_SaveActionReleasesLiveDisplayBeforeExportPrompt()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushTextWithEnter("results.xlsx");
+        console.Input.PushKey(ConsoleKey.Escape);
+        var exportFlow = new PromptingExportFlow(console);
+        var session = new SearchResultPageSession(
+            new StubClient(),
+            new SearchRequest
+            {
+                Dataset = "grants",
+                Query = "example",
+                Fields = ["title"],
+                Rows = 100
+            },
+            new SearchResponse
+            {
+                Cardinality = new SearchCardinality
+                {
+                    TotalResults = 1,
+                    CurrentResults = 1,
+                    PageNumber = 1,
+                    TotalPages = 1
+                },
+                Results = [System.Text.Json.JsonSerializer.SerializeToElement(new { title = "saved" })]
+            });
+
+        await new SearchResultsPager(console, new ApplicationFooterRenderer(console), exportFlow)
+            .ShowAsync(session, createFieldNames(), CancellationToken.None);
+
+        Assert.Equal(1, exportFlow.CallCount);
+        Assert.Equal("results.xlsx", exportFlow.Path);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Creates a one-record response page for all-pages pager tests.</summary>
+    /// <param name="pageNumber">The service data-page number.</param>
+    /// <param name="cursor">The optional continuation cursor.</param>
+    /// <param name="title">The synthetic record title.</param>
+    /// <param name="totalResults">The stable total result count.</param>
+    /// <param name="totalPages">The total service-page count.</param>
+    /// <returns>A synthetic service response.</returns>
+    /// <remarks>The cursor and cardinality values deliberately form a valid sequential walk.</remarks>
+    private static SearchResponse createPage(
+        int pageNumber,
+        string? cursor,
+        string title,
+        int totalResults,
+        int totalPages) => new()
+        {
+            Cursor = cursor,
+            Cardinality = new SearchCardinality
+            {
+                TotalResults = totalResults,
+                CurrentResults = 1,
+                PageNumber = pageNumber,
+                TotalPages = totalPages
+            },
+            Results = [System.Text.Json.JsonSerializer.SerializeToElement(new { title })]
+        };
+
+    /**************************************************************/
     /// <summary>Creates the shared cardinality labels used by pager tests.</summary>
     /// <returns>Valid report labels.</returns>
     private static SearchCardinalityFieldNames createFieldNames() => new()
@@ -198,12 +323,19 @@ public sealed class SearchResultsPagerTests
         #region implementation
 
         /**************************************************************/
-        /// <summary>Gets or sets the continuation response.</summary>
+        /// <summary>Gets or sets the fallback continuation response.</summary>
+        /// <remarks>The fallback is used by tests that exercise one-page behavior.</remarks>
         public OperationResult<SearchResponse> NextPage { get; init; } = OperationResult<SearchResponse>.Failure(
             [new OperationMessage { Code = "test.next-page", Message = "not configured", Severity = OperationMessageSeverity.Error }]);
 
         /**************************************************************/
+        /// <summary>Gets or sets queued continuation responses for all-pages tests.</summary>
+        /// <remarks>Each call consumes one response, preserving the order that a real cursor walk would observe.</remarks>
+        public Queue<OperationResult<SearchResponse>> NextPages { get; init; } = [];
+
+        /**************************************************************/
         /// <summary>Gets the number of continuation calls.</summary>
+        /// <remarks>The assertion uses this value to distinguish local display navigation from data fetching.</remarks>
         public int NextPageCalls { get; private set; }
 
         /**************************************************************/
@@ -237,11 +369,13 @@ public sealed class SearchResultsPagerTests
                 [new OperationMessage { Code = "test.unused", Message = "unused", Severity = OperationMessageSeverity.Error }]));
 
         /**************************************************************/
-        /// <summary>Records and returns the configured continuation response.</summary>
+        /// <summary>Records and returns the next deterministic continuation response.</summary>
         /// <param name="request">The stable query request.</param>
         /// <param name="cursor">The current service cursor.</param>
         /// <param name="nextPageNumber">The expected next result page number.</param>
         /// <param name="cancellationToken">The ignored cancellation token.</param>
+        /// <returns>The next queued response, or the configured fallback when the queue is empty.</returns>
+        /// <remarks>The fake intentionally performs no waiting so pager state assertions stay independent of service timing.</remarks>
         public Task<OperationResult<SearchResponse>> SearchNextPageAsync(
             SearchRequest request,
             string cursor,
@@ -249,7 +383,7 @@ public sealed class SearchResultsPagerTests
             CancellationToken cancellationToken)
         {
             NextPageCalls++;
-            return Task.FromResult(NextPage);
+            return Task.FromResult(NextPages.Count > 0 ? NextPages.Dequeue() : NextPage);
         }
 
         #endregion
@@ -257,12 +391,14 @@ public sealed class SearchResultsPagerTests
 
     /**************************************************************/
     /// <summary>Captures the session supplied by the pager's save action.</summary>
+    /// <remarks>This test double proves Save receives retained state without coupling the pager tests to file I/O.</remarks>
     private sealed class CapturingExportFlow : ISearchResultsExportFlow
     {
         #region implementation
 
         /**************************************************************/
         /// <summary>Gets the session received by the save action.</summary>
+        /// <remarks>The value remains null until the pager invokes the export flow.</remarks>
         public SearchResultPageSession? Session { get; private set; }
 
         /**************************************************************/
@@ -270,11 +406,52 @@ public sealed class SearchResultsPagerTests
         /// <param name="session">The session selected for export.</param>
         /// <param name="cancellationToken">The ignored cancellation token.</param>
         /// <returns>A completed interaction task.</returns>
+        /// <remarks>The captured reference is the same session instance shown by the pager.</remarks>
         public Task RunAsync(SearchResultPageSession session, CancellationToken cancellationToken)
         {
             Session = session;
             return Task.CompletedTask;
         }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Exercises an export prompt while proving LiveDisplay has already released the console.</summary>
+    private sealed class PromptingExportFlow : ISearchResultsExportFlow
+    {
+        #region implementation
+
+        private readonly IAnsiConsole _console;
+
+        /**************************************************************/
+        /// <summary>Initializes the prompt-capable export test double.</summary>
+        /// <param name="console">The test console receiving the export prompt.</param>
+        public PromptingExportFlow(IAnsiConsole console)
+        {
+            _console = console;
+        }
+
+        /**************************************************************/
+        /// <summary>Prompts for a path and records the result without performing file I/O.</summary>
+        /// <param name="session">The retained result session supplied by the pager.</param>
+        /// <param name="cancellationToken">The token controlling the prompt.</param>
+        /// <returns>A task representing the simulated export interaction.</returns>
+        public async Task RunAsync(SearchResultPageSession session, CancellationToken cancellationToken)
+        {
+            Path = await new TextPrompt<string>("Export path:")
+                .ShowAsync(_console, cancellationToken)
+                .ConfigureAwait(false);
+            CallCount++;
+        }
+
+        /**************************************************************/
+        /// <summary>Gets the number of simulated export calls.</summary>
+        public int CallCount { get; private set; }
+
+        /**************************************************************/
+        /// <summary>Gets the path entered into the simulated export prompt.</summary>
+        public string? Path { get; private set; }
 
         #endregion
     }

@@ -22,6 +22,7 @@
 - **JSON preview looks truncated:** `↪` marks the visual continuation of the same long JSON string. Use Next Page to continue; the serialized value is not truncated.
 - **Scheduled task has no output:** configure **Start in**, quote paths, and choose an existing writable output directory or file path. Named `preview` writes its artifact; named `process` writes its workbook and optional sidecars. Both report stable exit codes, and `process --log-file` records safe lifecycle diagnostics.
 - **iSearch cannot start:** set both `iSearch:apiKey` and `iSearch:contactEmail` with `dotnet user-secrets`; the workflow checks these values before any request. A negative `/health` status prevents dataset discovery. See [iSearch](isearch.md).
+- **iSearch all-pages walk stops early:** the walk retains successful pages and reports the service, cursor, response, or throttle failure. Retry **Fetch All Pages** to continue from the last accepted page; an empty page or unchanged cursor before `totalCount` is reached is reported as incomplete rather than treated as 100% loaded.
 
 ## Command-line usage
 

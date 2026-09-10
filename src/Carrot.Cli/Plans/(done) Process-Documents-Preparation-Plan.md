@@ -1,5 +1,7 @@
 # Process Documents Preparation and Review Menu
 
+Status: Done
+
 ## Summary
 
 Replace menu option 1's generic `Pending Implementation` screen with an interactive preparation workflow that accepts multiple files, folders, and ZIP archives, extracts their content, and displays the results in a paged table.
