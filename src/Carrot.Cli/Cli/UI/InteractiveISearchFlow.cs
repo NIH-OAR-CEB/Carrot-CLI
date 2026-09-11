@@ -29,6 +29,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     private readonly IISearchApiClient _client;
     private readonly ISearchResultsPager _resultsPager;
     private readonly ISearchFieldsPager _fieldsPager;
+    private readonly IAdvancedISearchQueryBuilder _advancedQueryBuilder;
 
     /**************************************************************/
     /// <summary>Initializes the interactive flow with configuration, API, and presentation boundaries.</summary>
@@ -39,6 +40,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
     /// <param name="client">The authenticated iSearch API boundary.</param>
     /// <param name="resultsPager">The bounded generic-record renderer.</param>
     /// <param name="fieldsPager">The bounded field-metadata renderer.</param>
+    /// <param name="advancedQueryBuilder">The prompt-driven advanced request builder.</param>
     public InteractiveISearchFlow(
         IAnsiConsole console,
         IOptions<ISearchOptions> options,
@@ -46,7 +48,8 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         SearchReturnTypeCatalog returnTypeCatalog,
         IISearchApiClient client,
         ISearchResultsPager resultsPager,
-        ISearchFieldsPager fieldsPager)
+        ISearchFieldsPager fieldsPager,
+        IAdvancedISearchQueryBuilder advancedQueryBuilder)
     {
         #region implementation
 
@@ -57,6 +60,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(resultsPager);
         ArgumentNullException.ThrowIfNull(fieldsPager);
+        ArgumentNullException.ThrowIfNull(advancedQueryBuilder);
         _console = console;
         _options = options.Value;
         _optionsValidator = optionsValidator;
@@ -64,6 +68,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         _client = client;
         _resultsPager = resultsPager;
         _fieldsPager = fieldsPager;
+        _advancedQueryBuilder = advancedQueryBuilder;
 
         #endregion
     }
@@ -173,6 +178,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                 if (selectedReturnType is not null)
                 {
                     choices.Add(DatasetChoice.SubmitQuery);
+                    choices.Add(DatasetChoice.BuildAdvancedQuery);
                 }
             }
 
@@ -191,6 +197,7 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                     DatasetChoice.SelectReturnDataset => "Select Return Dataset",
                     DatasetChoice.ViewFields => "View Fields",
                     DatasetChoice.SubmitQuery => "Submit Query",
+                    DatasetChoice.BuildAdvancedQuery => "Build Advanced Query",
                     DatasetChoice.Back => "Back to Main Menu",
                     _ => choice.ToString()
                 })
@@ -241,6 +248,19 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
                     if (selectedDatabase is not null && selectedReturnType is not null)
                     {
                         await submitQueryAsync(
+                            selectedDatabase,
+                            selectedReturnType,
+                            configuration.Cardinality,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    break;
+                case DatasetChoice.BuildAdvancedQuery:
+                    // Advanced construction needs live field metadata so the builder can prevent
+                    // unknown query and filter fields from entering the request package.
+                    if (selectedDatabase is not null && selectedReturnType is not null)
+                    {
+                        await buildAdvancedQueryAsync(
                             selectedDatabase,
                             selectedReturnType,
                             configuration.Cardinality,
@@ -384,19 +404,85 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
             DefaultOp = "AND",
             Rows = 100
         };
+        await showSearchResultsAsync(
+            request,
+            returnType.Name,
+            cardinalityFieldNames,
+            cancellationToken).ConfigureAwait(false);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Builds, reviews, and submits an advanced request for the selected database.</summary>
+    /// <param name="database">The exact live database selected by the operator.</param>
+    /// <param name="returnType">The configured result-field set for the request.</param>
+    /// <param name="cardinalityFieldNames">The configured labels for common result-cardinality values.</param>
+    /// <param name="cancellationToken">The token signaling console cancellation.</param>
+    private async Task buildAdvancedQueryAsync(
+        string database,
+        SearchReturnTypeDefinition returnType,
+        SearchCardinalityFieldNames cardinalityFieldNames,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
+        var fieldsResult = await _client.GetFieldsAsync(database, cancellationToken).ConfigureAwait(false);
+
+        // The builder cannot safely offer field-qualified controls without the live schema, so a
+        // discovery failure returns to the retained dataset menu without attempting a search.
+        if (fieldsResult.Status == OperationStatus.Failure)
+        {
+            writeMessages(fieldsResult.Messages);
+            return;
+        }
+
+        var request = await _advancedQueryBuilder
+            .BuildAsync(database, returnType, fieldsResult.Value!, cancellationToken)
+            .ConfigureAwait(false);
+        if (request is null)
+        {
+            // Cancellation at the builder's review boundary is local to advanced construction; the
+            // selected database and return dataset remain available for another menu action.
+            return;
+        }
+
+        await showSearchResultsAsync(
+            request,
+            returnType.Name,
+            cardinalityFieldNames,
+            cancellationToken).ConfigureAwait(false);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Submits a completed request and opens the existing result-session pager.</summary>
+    /// <param name="request">The basic or advanced request already validated by the prompt boundary.</param>
+    /// <param name="returnTypeName">The selected configured return-dataset label.</param>
+    /// <param name="cardinalityFieldNames">The configured labels for common result-cardinality values.</param>
+    /// <param name="cancellationToken">The token signaling request or console cancellation.</param>
+    private async Task showSearchResultsAsync(
+        SearchRequest request,
+        string returnTypeName,
+        SearchCardinalityFieldNames cardinalityFieldNames,
+        CancellationToken cancellationToken)
+    {
+        #region implementation
+
         var result = await _client.SearchAsync(request, cancellationToken).ConfigureAwait(false);
 
-        // Search failures are rendered as operation messages and return to the menu, allowing the
-        // operator to adjust the query without losing the selected database or return dataset.
+        // Search failures return to the dataset menu so the operator can correct the draft or use
+        // another action without losing the retained selection context.
         if (result.Status == OperationStatus.Failure)
         {
             writeMessages(result.Messages);
             return;
         }
 
-        // The session keeps the selected return dataset outside the pager while providing the
-        // reusable one-step continuation contract needed by interactive navigation and future crawling.
-        var session = new SearchResultPageSession(_client, request, result.Value!, returnType.Name);
+        // The session retains the stable request, including advanced controls, while the pager owns
+        // terminal presentation and delegates every later cursor request to the same API boundary.
+        var session = new SearchResultPageSession(_client, request, result.Value!, returnTypeName);
         await _resultsPager.ShowAsync(session, cardinalityFieldNames, cancellationToken).ConfigureAwait(false);
 
         #endregion
@@ -438,6 +524,10 @@ internal sealed class InteractiveISearchFlow : ISearchFlow
         /**************************************************************/
         /// <summary>Prompts for and submits a query for the retained dataset.</summary>
         SubmitQuery,
+
+        /**************************************************************/
+        /// <summary>Opens the live-field advanced query builder for the retained dataset.</summary>
+        BuildAdvancedQuery,
 
         /**************************************************************/
         /// <summary>Returns to the main menu.</summary>

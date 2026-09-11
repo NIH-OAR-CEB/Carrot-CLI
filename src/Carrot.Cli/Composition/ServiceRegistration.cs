@@ -127,6 +127,7 @@ internal static class ServiceRegistration
         services.AddTransient<ICategorizedISearchResultsPager, CategorizedISearchResultsPager>();
         services.AddTransient<ICategorizedISearchResultsExportFlow, CategorizedISearchResultsExportFlow>();
         services.AddTransient<ISearchFieldsPager, SearchFieldsPager>();
+        services.AddTransient<IAdvancedISearchQueryBuilder, AdvancedISearchQueryBuilder>();
         services.AddTransient<ISearchFlow, InteractiveISearchFlow>();
         services.AddTransient<InteractivePreviewFlow>();
         services.AddSingleton<ICommandRunLogger, CommandRunLogger>();

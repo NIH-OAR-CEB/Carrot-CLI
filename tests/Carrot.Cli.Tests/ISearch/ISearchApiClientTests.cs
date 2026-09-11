@@ -96,6 +96,77 @@ public sealed class ISearchApiClientTests
     }
 
     /**************************************************************/
+    /// <summary>Ensures advanced query controls are encoded as optional dataset-scoped GET values.</summary>
+    [Fact]
+    public async Task SearchAsync_EncodesAdvancedQueryControlsWithoutChangingTransport()
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => json(
+            HttpStatusCode.OK,
+            "{\"returnedCount\":0,\"totalCount\":0,\"results\":[]}"));
+        var client = createClient(handler, validOptions());
+
+        await client.SearchAsync(new SearchRequest
+        {
+            Dataset = "live grants",
+            Query = "pain study",
+            QueryFields = ["title", "abstract"],
+            FilterQueries = ["fy:2024", "fundingCategory:\"Research Project Grants\""],
+            Fields = ["id", "title"],
+            DefaultOp = "OR",
+            Rows = 25,
+            UpdatedAfter = "2024-10-01",
+            UpdatedBefore = "2025-09-30"
+        }, CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal(
+            "https://isearch.test/api/search/live%20grants?q=pain%20study&defaultOp=OR&rows=25&fl=id%2Ctitle&qf=title%2Cabstract&fq=fy%3A2024%2CfundingCategory%3A%22Research%20Project%20Grants%22&updatedBefore=2025-09-30&updatedAfter=2024-10-01",
+            request.RequestUri!.AbsoluteUri);
+        Assert.Empty(handler.RequestBodies);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures invalid advanced controls fail before an HTTP request is created.</summary>
+    [Theory]
+    [InlineData("OR", "bad-date", null, 25)]
+    [InlineData("XOR", null, null, 25)]
+    [InlineData("AND", null, "bad-date", 25)]
+    [InlineData("AND", null, null, 101)]
+    public async Task SearchAsync_InvalidAdvancedControls_DoesNotSendRequest(
+        string defaultOp,
+        string? updatedAfter,
+        string? updatedBefore,
+        int rows)
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var client = createClient(handler, validOptions());
+
+        var result = await client.SearchAsync(new SearchRequest
+        {
+            Dataset = "live-dataset",
+            Query = "vaccine",
+            Fields = ["title"],
+            DefaultOp = defaultOp,
+            Rows = rows,
+            UpdatedAfter = updatedAfter,
+            UpdatedBefore = updatedBefore
+        }, CancellationToken.None);
+
+        Assert.Empty(handler.Requests);
+        Assert.Equal(OperationStatus.Failure, result.Status);
+        Assert.Equal("isearch.request.invalid", result.Messages[0].Code);
+
+        #endregion
+    }
+
+    /**************************************************************/
     /// <summary>Ensures result-page cardinality uses the request row limit and terminates cleanly for empty data.</summary>
     [Theory]
     [InlineData(2, 5, 2, 3)]
@@ -176,6 +247,39 @@ public sealed class ISearchApiClientTests
         Assert.Equal(2, result.Value.Cardinality.TotalPages);
         Assert.Equal("final token", result.Value.Cursor);
         Assert.Equal(11, result.Value.Results[0].GetProperty("id").GetInt32());
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures advanced controls remain unchanged when a cursor page is requested.</summary>
+    [Fact]
+    public async Task SearchNextPageAsync_PreservesAdvancedQueryControls()
+    {
+        #region implementation
+
+        var handler = new RecordingHandler(_ => json(
+            HttpStatusCode.OK,
+            "{\"returnedCount\":1,\"totalCount\":2,\"results\":[{\"id\":2}]}"));
+        var client = createClient(handler, validOptions());
+
+        await client.SearchNextPageAsync(new SearchRequest
+        {
+            Dataset = "live-dataset",
+            Query = "*:*",
+            QueryFields = ["title"],
+            FilterQueries = ["fy:2024"],
+            Fields = ["id"],
+            DefaultOp = "AND",
+            Rows = 1,
+            UpdatedAfter = "2024-10-01",
+            UpdatedBefore = "2025-09-30"
+        }, "next cursor", 2, CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(
+            "https://isearch.test/api/search/live-dataset?q=%2A%3A%2A&defaultOp=AND&rows=1&fl=id&qf=title&fq=fy%3A2024&updatedBefore=2025-09-30&updatedAfter=2024-10-01&cursor=next%20cursor",
+            request.RequestUri!.AbsoluteUri);
 
         #endregion
     }

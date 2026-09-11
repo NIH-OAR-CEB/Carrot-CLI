@@ -207,12 +207,17 @@ internal sealed class ISearchApiClient : IISearchApiClient
             || request.Fields.Count == 0
             || request.Fields.Any(string.IsNullOrWhiteSpace)
             || !string.Equals(request.DefaultOp, "AND", StringComparison.Ordinal)
+                && !string.Equals(request.DefaultOp, "OR", StringComparison.Ordinal)
+            || request.QueryFields?.Any(string.IsNullOrWhiteSpace) == true
+            || request.FilterQueries?.Any(string.IsNullOrWhiteSpace) == true
+            || !isValidDate(request.UpdatedAfter)
+            || !isValidDate(request.UpdatedBefore)
             || request.Rows is < 1 or > MaximumRows
             || pageNumber < 1)
         {
             return Task.FromResult(failure<SearchResponse>(
                 "isearch.request.invalid",
-                "The iSearch request must contain a dataset, a query, at least one result field, defaultOp AND, and 1-100 rows."));
+                "The iSearch request must contain a dataset, query, result fields, defaultOp AND or OR, valid optional controls, and 1-100 rows."));
         }
 
         // Keep the query context identical for every page; only the optional cursor distinguishes a
@@ -242,15 +247,62 @@ internal sealed class ISearchApiClient : IISearchApiClient
 
         // The live dataset-scoped GET operation is retained because the body-based POST operation
         // currently returns HTTP 500; continuation adds only the service-owned cursor value.
-        var requestUri = $"search/{Uri.EscapeDataString(request.Dataset)}"
-            + $"?q={Uri.EscapeDataString(request.Query)}"
-            + $"&defaultOp={Uri.EscapeDataString(request.DefaultOp)}"
-            + $"&rows={request.Rows}"
-            + $"&fl={Uri.EscapeDataString(string.Join(',', request.Fields))}";
+        var parameters = new List<string>
+        {
+            $"q={Uri.EscapeDataString(request.Query)}",
+            $"defaultOp={Uri.EscapeDataString(request.DefaultOp)}",
+            $"rows={request.Rows}",
+            $"fl={Uri.EscapeDataString(string.Join(',', request.Fields))}"
+        };
+
+        // Optional arrays are encoded as one comma-separated GET value because the iSearch OpenAPI
+        // contract disables explode for these parameters. Encoding the complete value preserves
+        // spaces, quotes, range brackets, and other Lucene characters as data.
+        if (request.QueryFields is { Count: > 0 })
+        {
+            parameters.Add($"qf={Uri.EscapeDataString(string.Join(',', request.QueryFields))}");
+        }
+
+        if (request.FilterQueries is { Count: > 0 })
+        {
+            parameters.Add($"fq={Uri.EscapeDataString(string.Join(',', request.FilterQueries))}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.UpdatedBefore))
+        {
+            parameters.Add($"updatedBefore={Uri.EscapeDataString(request.UpdatedBefore)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.UpdatedAfter))
+        {
+            parameters.Add($"updatedAfter={Uri.EscapeDataString(request.UpdatedAfter)}");
+        }
+
+        var requestUri = $"search/{Uri.EscapeDataString(request.Dataset)}?{string.Join('&', parameters)}";
 
         return string.IsNullOrWhiteSpace(cursor)
             ? requestUri
             : $"{requestUri}&cursor={Uri.EscapeDataString(cursor)}";
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Validates an optional iSearch update-date request value.</summary>
+    /// <param name="value">The date value supplied by the request, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the value is absent or exactly <c>yyyy-MM-dd</c>.</returns>
+    /// <remarks>The interactive builder performs the same validation before confirmation; this second gate protects other callers of the API boundary.</remarks>
+    private static bool isValidDate(string? value)
+    {
+        #region implementation
+
+        return string.IsNullOrWhiteSpace(value)
+            || DateOnly.TryParseExact(
+                value,
+                "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out _);
 
         #endregion
     }

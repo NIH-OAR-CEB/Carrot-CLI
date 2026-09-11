@@ -93,6 +93,7 @@ public sealed class InteractiveISearchFlowTests
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.Enter);
         var flow = createFlow(console, client, validOptions());
 
@@ -108,6 +109,56 @@ public sealed class InteractiveISearchFlowTests
         Assert.Contains("Result Cardinality", console.Output, StringComparison.Ordinal);
         Assert.Contains("returnedCount: 1", console.Output, StringComparison.Ordinal);
         Assert.Contains("A result", console.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Ensures the advanced menu action discovers fields, reviews JSON, and submits the confirmed request.</summary>
+    [Fact]
+    public async Task RunAsync_BuildAdvancedQuery_SubmitsReviewedRequest()
+    {
+        #region implementation
+
+        using var console = createConsole();
+        var client = createHealthyClient();
+        client.Fields = OperationResult<IReadOnlyList<SearchField>>.Success(
+        [
+            new SearchField { Name = "fy", FieldType = "int", DefaultQueryField = true }
+        ]);
+
+        // Select the live database and configured return set, choose Build Advanced Query, review
+        // the default match-all package, confirm it, then leave both result and dataset menus.
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        for (var position = 0; position < 4; position++)
+        {
+            console.Input.PushKey(ConsoleKey.DownArrow);
+        }
+
+        console.Input.PushKey(ConsoleKey.Enter);
+        for (var position = 0; position < 7; position++)
+        {
+            console.Input.PushKey(ConsoleKey.DownArrow);
+        }
+
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Escape);
+        console.Input.PushKey(ConsoleKey.Escape);
+        var flow = createFlow(console, client, validOptions());
+
+        await flow.RunAsync(CancellationToken.None);
+
+        Assert.Equal(1, client.FieldsCalls);
+        Assert.Equal("live grants", client.LastFieldsDataset);
+        Assert.Equal("*:*", client.LastSearch!.Query);
+        Assert.Null(client.LastSearch.FilterQueries);
+        Assert.Contains("Build Advanced Query", console.Output, StringComparison.Ordinal);
+        Assert.Contains("JSON package to submit", console.Output, StringComparison.Ordinal);
 
         #endregion
     }
@@ -167,6 +218,7 @@ public sealed class InteractiveISearchFlowTests
         console.Input.PushTextWithEnter("vaccine research");
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
@@ -263,6 +315,7 @@ public sealed class InteractiveISearchFlowTests
         console.Input.PushKey(ConsoleKey.Enter);
         console.Input.PushTextWithEnter("schema check");
         console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
         console.Input.PushKey(ConsoleKey.DownArrow);
@@ -397,7 +450,8 @@ public sealed class InteractiveISearchFlowTests
             returnTypeCatalog ?? createReturnTypeCatalog(),
             client,
             new SearchResultsPager(console, new ApplicationFooterRenderer(console)),
-            new SearchFieldsPager(console));
+            new SearchFieldsPager(console),
+            new AdvancedISearchQueryBuilder(console));
 
         #endregion
     }

@@ -49,6 +49,42 @@ The `*FieldName` values label the common report; they are not added to `DefaultF
 5. After the database is selected, choose **View Fields** to retrieve the live schema. **View Fields** calls the authenticated `GET /fields/{dataset}` route for the selected live database. The terminal table is sorted by `name` and displays `name`, `displayName`, `fieldType`, `defaultQueryField`, `defaultResultField`, `multiValued`, and `searchOnly`. Field names, labels, types, and Boolean flags belong to the live iSearch dataset schema; the CLI does not hard-code a field catalog. Field discovery permits a bounded response of up to 1 MiB by default because a complete dataset schema can be larger than ordinary operation diagnostics. Large displays use **Next Page** and **Previous Page**, while **Back to iSearch** or Escape returns to the dataset menu. After both selections, choose **Submit Query** and enter a nonempty free-text or Lucene query.
 6. **Submit Query** sends the selected return dataset's fields as the comma-separated `fl` result-field parameter on the dataset-scoped `GET /search/{dataset}` request, together with URL-encoded `q`, `defaultOp=AND`, and at most 100 rows. The dataset-scoped route is used because the live body-based POST route currently returns HTTP 500.
 
+### Advanced query construction
+
+After selecting a live database and return dataset, choose **Build Advanced Query** to construct a
+guided request from the live field metadata. The builder explains the distinction between `q` (the
+base query), `qf` (fields used for unqualified terms), `fq` (field-qualified filters), configured
+`fl` result fields, `defaultOp`, `rows`, and the service-level `updatedAfter` and
+`updatedBefore` bounds. A blank base query becomes `*:*`, which is useful when the restrictions are
+provided by filters alone.
+
+The filter picker uses the selected field's live name and type. For example, a returned numeric
+fiscal-year field can receive `2024`, while a returned category field can receive a phrase such as
+`Research Project Grants`. Multiple filters can be added or removed. Date bounds must use
+`yyyy-MM-dd`; field-specific date or range filters must follow the Zulia query syntax
+documented by the service.
+
+Before a request is sent, the CLI displays its logical JSON package with pretty-printing, for example:
+
+```json
+{
+  "dataset": "grants",
+  "q": "*:*",
+  "fl": ["grantNumber", "title"],
+  "rows": 100,
+  "defaultOp": "AND",
+  "fq": ["fy:2024", "fundingCategory:\"Research Project Grants\""],
+  "updatedAfter": "2024-10-01",
+  "updatedBefore": "2025-09-30"
+}
+```
+
+Choose **Edit Query Choices** to revisit a setting and regenerate the package, **Confirm and Submit**
+to run it, or **Cancel** to return to the database menu. This JSON is a review representation of the
+documented iSearch search package. The current client still sends the confirmed values as an encoded
+dataset-scoped GET request, and the existing result pager carries the same filters and date bounds
+through cursor continuation. Query drafts are held in memory for the current visit only.
+
 Results show the configured cardinality names with total results, results in the current response, the current result page, and total result pages, followed by generic JSON records containing the selected fields. For a nonempty initial response, the result page is `1` and total pages uses ceiling division by the requested row limit. Empty data reports page `0` of `0`, providing an unambiguous stop condition for a data walk.
 
 The results menu distinguishes **Next Display Page** from service-data actions. Next Display Page moves through terminal-sized lines already held for the current response and makes no network request. **Fetch Next Result Page** uses the service cursor to retrieve exactly one next chunk for the same live database, query, configured return dataset, fields, and row limit. **Fetch All Pages**, immediately below it, sequentially fetches every remaining service page for that query and updates the live **Search Summary** after each accepted page. Its progress bar reports loaded records divided by `totalCount` (for example, a partial final page can show 90.9% while Data Page is 3 of 3), and its Data Page value advances as responses are committed. Both fetch actions disappear when the service result set is complete. Routine iSearch HTTP-client information diagnostics are suppressed during the interactive workflow so logging cannot insert lines into the live summary region; warnings and errors still surface through the normal failure handling. A failed or canceled walk retains already accepted pages and does not claim completion; the operator can retry or go back. **Save iSearch Results to Excel** writes every record walked in this session—page 1 followed by page 2 and later pages—without fetching another page. The workbook has one `Results` worksheet with `ResultPage`, `ResultOrdinal`, configured fields, and any additional returned object fields; duplicate records are preserved in service order, and scalar/array records use a `Value` column. Terminal display pages are separate from iSearch result pages because one record can occupy multiple terminal lines. The shared **Search Summary** repeats the live dataset and return dataset, labels service chunks as **Data Page**, labels terminal rendering as **Display Page**, reports current/loaded/total records, and states whether another data chunk can be fetched. All continuation requests remain sequential and use the documented authenticated one-second request interval; bounded transient retries honor `Retry-After`. Returning from field discovery or results retains both selections; changing the live database requires selecting a return dataset again. Queries, field metadata, and walked results remain in memory for the current visit only; Save is explicit, local, atomic, and creates no JSON sidecar or log.
