@@ -1,6 +1,7 @@
 using System.Globalization;
 using Carrot.Cli.CarrotApi.Contracts;
 using Carrot.Cli.Common;
+using Carrot.Cli.ISearch;
 using Carrot.Cli.Processing;
 using Spectre.Console;
 
@@ -81,6 +82,54 @@ internal sealed class ConsoleReporter
         foreach (var artifactPath in result.ArtifactPaths)
         {
             _console.Write(new Text($"  {artifactPath}{Environment.NewLine}"));
+        }
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Displays a safe summary for a named iSearch command result.</summary>
+    /// <param name="result">The complete or partial iSearch operation result.</param>
+    /// <param name="quiet">Whether normal informational output is suppressed.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="result"/> is null.</exception>
+    /// <seealso cref="SearchCommandResult"/>
+    internal void WriteISearchResult(
+        OperationResult<SearchCommandResult> result,
+        bool quiet)
+    {
+        #region implementation
+
+        ArgumentNullException.ThrowIfNull(result);
+
+        foreach (var message in result.Messages)
+        {
+            if (!quiet || message.Severity is OperationMessageSeverity.Warning or OperationMessageSeverity.Error)
+            {
+                writeMessage(message);
+            }
+        }
+
+        if (quiet || result.Value is not { } value)
+        {
+            return;
+        }
+
+        _console.Write(new Text($"iSearch database: {value.Database}{Environment.NewLine}"));
+        _console.Write(new Text($"Return dataset: {value.ReturnDataset}{Environment.NewLine}"));
+        _console.Write(new Text($"Loaded records: {value.Session.WalkedResults.Count.ToString(CultureInfo.InvariantCulture)}{Environment.NewLine}"));
+        _console.Write(new Text($"Total records: {value.Session.WalkProgress.TotalRecords.ToString(CultureInfo.InvariantCulture)}{Environment.NewLine}"));
+        _console.Write(new Text($"Complete: {value.IsComplete}{Environment.NewLine}"));
+        _console.Write(new Text($"Categorized: {value.WasCategorized}{Environment.NewLine}"));
+        _console.Write(new Text("Artifacts:" + Environment.NewLine));
+        if (value.ArtifactPaths.Count == 0)
+        {
+            _console.Write(new Text("  (none)" + Environment.NewLine));
+            return;
+        }
+
+        foreach (var path in value.ArtifactPaths)
+        {
+            _console.Write(new Text($"  {path}{Environment.NewLine}"));
         }
 
         #endregion

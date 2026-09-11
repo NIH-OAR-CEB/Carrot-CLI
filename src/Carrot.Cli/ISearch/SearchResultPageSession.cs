@@ -28,6 +28,7 @@ internal sealed class SearchResultPageSession
     private readonly List<SearchResponse> _walkedPages;
     private readonly List<JsonElement> _walkedResults;
     private readonly int _totalResults;
+    private readonly int? _maximumRetainedResults;
     private bool _reachedTerminalResponse;
 
     /**************************************************************/
@@ -36,6 +37,7 @@ internal sealed class SearchResultPageSession
     /// <param name="request">The unchanged database, query, fields, operator, and row-limit context.</param>
     /// <param name="initialPage">The validated first response to expose as the current page.</param>
     /// <param name="returnDataset">The configured return-dataset label, when the interactive flow supplies one.</param>
+    /// <param name="maximumRetainedResults">The optional caller cap for bounded command-line retention.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required argument is <see langword="null"/>.</exception>
     /// <remarks>
     /// The constructor treats <paramref name="initialPage"/> as already accepted and uses its total
@@ -47,22 +49,29 @@ internal sealed class SearchResultPageSession
         IISearchApiClient client,
         SearchRequest request,
         SearchResponse initialPage,
-        string? returnDataset = null)
+        string? returnDataset = null,
+        int? maximumRetainedResults = null)
     {
         #region implementation
 
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(initialPage);
+        if (maximumRetainedResults is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumRetainedResults));
+        }
 
         _client = client;
         _request = request;
         ReturnDataset = returnDataset;
-        CurrentPage = initialPage;
-        _walkedPages = [initialPage];
-        _walkedResults = initialPage.Results.ToList();
+        _maximumRetainedResults = maximumRetainedResults;
+        _walkedResults = [];
+        CurrentPage = limitPage(initialPage);
+        _walkedPages = [CurrentPage];
+        _walkedResults.AddRange(CurrentPage.Results);
         _totalResults = initialPage.Cardinality.TotalResults;
-        _reachedTerminalResponse = initialPage.Results.Count == 0 && _totalResults > 0;
+        _reachedTerminalResponse = CurrentPage.Results.Count == 0 && _totalResults > 0;
 
         #endregion
     }
@@ -122,6 +131,7 @@ internal sealed class SearchResultPageSession
     /// </remarks>
     public bool CanFetchNextPage => !_reachedTerminalResponse
         && _walkedResults.Count < _totalResults
+        && (!_maximumRetainedResults.HasValue || _walkedResults.Count < _maximumRetainedResults.Value)
         && !string.IsNullOrWhiteSpace(CurrentPage.Cursor)
         && CurrentPage.Cardinality.PageNumber > 0
         && CurrentPage.Cardinality.PageNumber < CurrentPage.Cardinality.TotalPages;
@@ -203,7 +213,11 @@ internal sealed class SearchResultPageSession
                     "iSearch returned an unchanged continuation cursor before the result set was complete.");
             }
 
-            if (_walkedResults.Count > MaximumWalkedResults - nextPage.Results.Count)
+            var pageToStore = limitPage(nextPage);
+
+            // A bounded caller may need only a prefix of this service page. Capacity is checked
+            // against retained records, while total-count consistency is checked against the full response.
+            if (_walkedResults.Count > MaximumWalkedResults - pageToStore.Results.Count)
             {
                 // Excel cannot represent more than 1,048,575 data rows beneath a header, so reject
                 // the next page before mutating state rather than saving an incomplete walk later.
@@ -227,14 +241,15 @@ internal sealed class SearchResultPageSession
 
             // Append before exposing the new current page so the session's page and aggregate state
             // advance as one transition; a failed operation never changes either collection.
-            _walkedPages.Add(nextPage);
-            _walkedResults.AddRange(nextPage.Results);
-            CurrentPage = nextPage;
+            _walkedPages.Add(pageToStore);
+            _walkedResults.AddRange(pageToStore.Results);
+            CurrentPage = pageToStore;
 
             // A blank cursor or a complete record aggregate makes another request unnecessary even
             // when cardinality metadata still advertises a nominal later page.
             _reachedTerminalResponse = string.IsNullOrWhiteSpace(nextPage.Cursor)
-                || _walkedResults.Count >= _totalResults;
+                || _walkedResults.Count >= _totalResults
+                || _maximumRetainedResults is { } maximum && _walkedResults.Count >= maximum;
         }
 
         return result;
@@ -324,6 +339,43 @@ internal sealed class SearchResultPageSession
             TotalRecords = _totalResults,
             Percentage = percentage,
             IsComplete = isComplete
+        };
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>Creates the page representation retained under an optional command record cap.</summary>
+    /// <param name="page">The fully validated service page.</param>
+    /// <returns>The original page or a prefix projection with preserved cursor and page identity.</returns>
+    /// <remarks>The service page is projected only for retained output; service totals and cursor state remain unchanged.</remarks>
+    private SearchResponse limitPage(SearchResponse page)
+    {
+        #region implementation
+
+        if (_maximumRetainedResults is not { } maximum)
+        {
+            return page;
+        }
+
+        var remaining = maximum - _walkedResults.Count;
+        var take = Math.Min(Math.Max(remaining, 0), page.Results.Count);
+        if (take == page.Results.Count)
+        {
+            return page;
+        }
+
+        return new SearchResponse
+        {
+            Cursor = page.Cursor,
+            Cardinality = new SearchCardinality
+            {
+                TotalResults = page.Cardinality.TotalResults,
+                CurrentResults = take,
+                PageNumber = page.Cardinality.PageNumber,
+                TotalPages = page.Cardinality.TotalPages
+            },
+            Results = page.Results.Take(take).ToArray()
         };
 
         #endregion

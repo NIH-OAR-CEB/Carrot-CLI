@@ -37,6 +37,10 @@ internal static class ExitCodes
     internal const int OutputFailure = 6;
 
     /**************************************************************/
+    /// <summary>Indicates iSearch health, discovery, search, or cursor failure.</summary>
+    internal const int ISearchFailure = 7;
+
+    /**************************************************************/
     /// <summary>Indicates cooperative cancellation.</summary>
     internal const int Cancellation = 130;
 

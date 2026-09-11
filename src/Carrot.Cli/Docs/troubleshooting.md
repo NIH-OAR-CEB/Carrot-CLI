@@ -23,6 +23,8 @@
 - **Scheduled task has no output:** configure **Start in**, quote paths, and choose an existing writable output directory or file path. Named `preview` writes its artifact; named `process` writes its workbook and optional sidecars. Both report stable exit codes, and `process --log-file` records safe lifecycle diagnostics.
 - **iSearch cannot start:** set both `iSearch:apiKey` and `iSearch:contactEmail` with `dotnet user-secrets`; the workflow checks these values before any request. A negative `/health` status prevents dataset discovery. See [iSearch](isearch.md).
 - **iSearch all-pages walk stops early:** the walk retains successful pages and reports the service, cursor, response, or throttle failure. Retry **Fetch All Pages** to continue from the last accepted page; an empty page or unchanged cursor before `totalCount` is reached is reported as incomplete rather than treated as 100% loaded.
+- **Named iSearch option rejected:** use one `--database` returned by live `/datasets` and one configured `--result-dataset`. Repeat `--query-field` and `--filter-query` for qf/fq values; field references must exist in live `/fields/{database}` metadata. Dates must use `yyyy-MM-dd`, `--rows` must be 1 through 100, and `--all-results` cannot be combined with `--max-results`. The named command has no `--sort` option.
+- **Named iSearch returns partial success:** exit code `2` means the requested bounded record cap was reached while more service pages remained. Use a larger `--max-results` or explicitly use `--all-results` when the retention ceiling permits a complete walk.
 
 ## Command-line usage
 

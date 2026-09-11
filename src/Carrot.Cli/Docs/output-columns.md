@@ -38,3 +38,9 @@ Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
 Arguments: help output-columns
 Start in: C:\Tools\Carrot CLI
 ```
+# iSearch named-command output
+
+Named `isearch` output uses the same `Results` worksheet as interactive iSearch export and preserves
+accepted service-page order. Categorized output uses the existing categorized worksheet with the
+four iSearch source fields and category memberships. No alternate named-command workbook format is
+created.

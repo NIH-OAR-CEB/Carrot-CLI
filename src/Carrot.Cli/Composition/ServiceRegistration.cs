@@ -120,6 +120,8 @@ internal static class ServiceRegistration
         services.AddTransient<ServerInfoCommand>();
         services.AddTransient<PreviewCommand>();
         services.AddTransient<ProcessCommand>();
+        services.AddTransient<ISearchCommand>();
+        services.AddTransient<ISearchCommandWorkflow, SearchCommandWorkflow>();
         services.AddTransient<ServerInformationFlow>();
         services.AddTransient<ISearchResultsCategorizer, SearchResultsCategorizer>();
         services.AddTransient<ISearchResultsCategorizationFlow, SearchResultsCategorizationFlow>();

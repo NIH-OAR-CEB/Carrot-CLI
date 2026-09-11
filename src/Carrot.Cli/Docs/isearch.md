@@ -1,6 +1,6 @@
 # iSearch
 
-iSearch is an optional interactive workflow for checking the NIH iSearch service, discovering its live databases, selecting a configured return dataset, and submitting a bounded query. It is available from the main menu after credentials are configured.
+iSearch is available as both an interactive workflow and a prompt-free `isearch` command. Both paths discover live databases, select a configured return dataset, and submit the same authenticated dataset-scoped GET search contract.
 
 ## Configure User Secrets
 
@@ -99,10 +99,44 @@ Missing credentials or invalid/empty return-dataset configuration stop the workf
 
 ## Command-line usage
 
-iSearch is currently interactive-only:
+The named command never prompts. Supply the live service database and configured return dataset,
+then use the advanced options that correspond to the interactive builder:
+
+| Option | Meaning |
+| --- | --- |
+| `--query <TEXT>` | Base `q`; defaults to `*:*`. |
+| `--query-field <FIELD>` | Repeat for ordered `qf` fields. |
+| `--filter-query <EXPRESSION>` | Repeat for ordered `fq` expressions such as `fy:2024` or `fundingCategory:"Research Project Grants"`. |
+| `--default-op <AND\|OR>` | `defaultOp`; defaults to `AND`. |
+| `--rows <1-100>` | Service page size; defaults to `100`. |
+| `--updated-after <YYYY-MM-DD>` / `--updated-before <YYYY-MM-DD>` | Service update-date bounds. |
+| `--result-dataset <NAME>` | Configured return dataset; its `DefaultFields` become `fl`. |
+
+`--query-field` and `--filter-query` preserve the order in which they appear. When either is used,
+the command validates the referenced field names against live `GET /fields/{database}` metadata.
+Filter values are complete iSearch/Zulia expressions; the command does not invent a second typed
+filter language. There is intentionally no `--sort` option because that control is unsupported.
+
+Use a bounded search for scheduled work:
+
+```powershell
+carrot-cli isearch --database grants --result-dataset Grants --query "*:*" `
+  --filter-query "fy:2024" --filter-query 'fundingCategory:"Research Project Grants"' `
+  --query-field title --rows 100 --max-results 300 `
+  --output "C:\Results\grants-2024.xlsx" --overwrite
+```
+
+Use `--all-results` instead of `--max-results` when every record through iSearch's reported
+`totalCount` is required. Add `--categorize --categorized-output <PATH> --endpoint <URI>` to send
+the accepted records through the existing Carrot path and write a categorized workbook. Existing
+output files require `--overwrite`; parent directories are not created. Exit code `2` identifies a
+useful bounded partial walk, `7` identifies iSearch health/discovery/search/paging failure, `4`/`5`
+identify Carrot failures, `6` identifies workbook failure, and `130` identifies cancellation.
+
+The command can be used from Task Scheduler:
 
 ```text
 Program/script: C:\Tools\Carrot CLI\carrot-cli.exe
-Arguments:
+Arguments: isearch --database grants --result-dataset Grants --query "title:pain" --max-results 100 --output "C:\Results\grants.xlsx" --overwrite
 Start in: C:\Tools\Carrot CLI
 ```

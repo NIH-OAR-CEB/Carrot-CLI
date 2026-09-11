@@ -1,528 +1,386 @@
 # Named iSearch Command-Line Operations
 
-**Status:** Pending
+**Status:** Complete
 
 ## 1. Outcome
 
-Add a noninteractive `isearch` command that automates the existing interactive iSearch workflow
-without replacing it. The command will accept the live iSearch database, the configured result
-dataset, query text, either a bounded maximum-result count or an explicit all-results mode, optional
-original-result Excel output, an optional Carrot categorization step, and optional categorized-result
-Excel output. In all-results mode, the command will cursor-walk the database until iSearch's
-reported total is loaded, subject only to the existing hard storage and workbook safety limits.
+Add a prompt-free `isearch` command that runs the existing iSearch search, paging, optional Carrot
+categorization, and Excel export workflow. The command must expose the advanced-query controls that
+are now available in the interactive **Build Advanced Query** menu:
 
-Representative invocations will be:
+- base query (`q`)
+- repeated query fields (`qf`)
+- repeated field-qualified filters (`fq`)
+- default Boolean operator (`defaultOp`)
+- result-page size (`rows`)
+- service update-date bounds (`updatedAfter` and `updatedBefore`)
+- configured return fields (`fl`), selected by `--result-dataset`
+
+The command must preserve the existing authenticated dataset-scoped GET search and cursor
+continuation behavior. It must not expose a `sort` option: the latest iSearch work removed that
+unsupported control from the shared request contract and interactive builder.
+
+Example advanced invocation:
 
 ```powershell
-# Search one live iSearch database and save the returned pages to Excel.
 carrot-cli isearch `
   --database grants `
   --result-dataset Grants `
-  --query "title:pain" `
+  --query "*:*" `
+  --query-field title `
+  --query-field abstract `
+  --filter-query "fy:2024" `
+  --filter-query 'fundingCategory:"Research Project Grants"' `
+  --default-op AND `
+  --rows 100 `
+  --updated-after 2024-10-01 `
+  --updated-before 2025-09-30 `
   --max-results 300 `
-  --output "C:\Results\grants-original.xlsx" `
-  --overwrite
-
-# Search, send the loaded records to Carrot, and save both workbooks.
-carrot-cli isearch `
-  --database grants `
-  --result-dataset Grants `
-  --query '"lung cancer"' `
-  --max-results 5000 `
-  --output "C:\Results\grants-original.xlsx" `
-  --categorize `
-  --categorized-output "C:\Results\grants-categorized.xlsx" `
-  --endpoint "http://localhost:8080/service" `
-  --overwrite
-
-# Cursor-walk every page reported by iSearch without guessing a result count.
-carrot-cli isearch `
-  --database grants `
-  --result-dataset Grants `
-  --query "title:pain" `
-  --all-results `
-  --output "C:\Results\all-grants.xlsx" `
+  --output "C:\Results\grants-2024.xlsx" `
   --overwrite
 ```
 
-The command will remain prompt-free and return stable nonzero exit codes for invalid options,
-iSearch failures, Carrot categorization failures, incomplete bounded walks, output failures, and
-cancellation. Authentication will continue to come from the existing `iSearch:apiKey` and
-`iSearch:contactEmail` User Secrets configuration; no API-key option will be added.
+The command also supports a simple query with `--query`, an explicit `--all-results` cursor walk,
+and the existing optional Carrot categorization/output path. Authentication remains in User
+Secrets (`iSearch:apiKey` and `iSearch:contactEmail`); no API-key option is added.
 
 ## 2. Problem
 
-The current command surface is named `process`, `preview`, `server-info`, `help`, and `about`,
-while iSearch is available only from the interactive menu. The interactive path already supports
-health validation, live database discovery, configured return-dataset selection, cursor-based page
-fetching, Carrot categorization, and explicit Excel export, but those actions require prompts and
-cannot be run by Task Scheduler or another automation wrapper.
+The command surface currently contains `process`, `preview`, `server-info`, `help`, and `about`,
+while iSearch remains interactive. The interactive iSearch implementation now supports live field
+discovery and advanced request construction, including `q`, `qf`, `fq`, `fl`, `defaultOp`, `rows`,
+`updatedAfter`, and `updatedBefore`. The 2026-09-11 journal entries also record that the advanced
+request contract, safe GET serialization, cursor preservation, tests, and documentation are
+complete, and that `sort` was intentionally removed.
 
-The existing implementation provides the reusable boundaries needed for a command:
+What remains is a named-command contract and workflow that can consume the completed advanced
+request model without prompts. It must distinguish the live service database from the configured
+return-dataset name, validate field-qualified options against the selected database when needed,
+preserve all advanced values during cursor paging, and retain the existing categorization and
+workbook contracts.
 
-- `src/Carrot.Cli/ISearch/ISearchApiClient.cs` owns authenticated health, dataset, search, and
-  cursor-continuation calls.
-- `src/Carrot.Cli/ISearch/SearchResultPageSession.cs` retains accepted pages and records while
-  preserving the original query context and page invariants.
-- `src/Carrot.Cli/Configuration/SearchReturnTypeCatalog.cs` loads the configured
-  `iSearchReturnTypes.Results` children and their ordered `DefaultFields`.
-- `src/Carrot.Cli/ISearch/SearchResultsCategorizer.cs` maps loaded records to the exact four-field
-  Carrot request and delegates to the shared Carrot categorization service.
-- `src/Carrot.Cli/Reporting/SearchResultsExporter.cs` and
-  `src/Carrot.Cli/Reporting/CategorizedISearchResultsExporter.cs` already use the shared atomic
-  Excel workbook writer.
+Relevant existing boundaries are:
 
-What is missing is a noninteractive settings contract and orchestration boundary that composes
-those services without copying interactive prompts, creating a second HTTP client, or introducing
-a second Excel format.
+- `src/Carrot.Cli/ISearch/Contracts/SearchRequest.cs` already models the JSON names and optional
+  advanced controls.
+- `src/Carrot.Cli/ISearch/ISearchApiClient.cs` already validates and URL-encodes those controls on
+  the dataset-scoped GET operation and preserves them for continuation.
+- `src/Carrot.Cli/ISearch/SearchResultPageSession.cs` owns accepted pages, records, cursors, totals,
+  and the Excel-safe retention ceiling.
+- `src/Carrot.Cli/Configuration/SearchReturnTypeCatalog.cs` resolves configured return fields for
+  `fl`.
+- `src/Carrot.Cli/ISearch/SearchResultsCategorizer.cs` and the two iSearch exporters are shared by
+  the completed interactive categorization workflow.
 
 ## 3. Solution vision
 
-Register one typed Spectre.Console.Cli command named `isearch`. Its settings will distinguish the
-two iSearch concepts that otherwise have ambiguous names:
+Register one typed Spectre.Console.Cli leaf command named `isearch`. Its settings translate directly
+to the shared `SearchRequest` contract while keeping CLI concerns separate from HTTP and reporting.
+The command adapter will validate syntax and option relationships, then delegate to a focused
+workflow that owns live discovery, request construction, paging, categorization, and export.
 
-- `--database <NAME>` identifies the live iSearch service database and must match a value returned
-  by authenticated `GET /datasets`.
-- `--result-dataset <NAME>` identifies a configured child under
-  `iSearchReturnTypes.Results` such as `Grants`; its ordered `DefaultFields` become the iSearch
-  `fl` parameter.
+The named workflow will:
 
-The command will execute this flow without prompts:
+1. Validate local command relationships, credentials, return-dataset configuration, dates, output
+   paths, and bounded/all-results selection before side effects.
+2. Call authenticated `GET /health`, then `GET /datasets`, and accept only a database returned by
+   live discovery.
+3. Resolve `--result-dataset` from `iSearchReturnTypes.Results`; its ordered `DefaultFields` are
+   the request's `fl` values.
+4. When `--query-field` or `--filter-query` is supplied, call `GET /fields/{dataset}` and validate
+   the referenced live field names. Do not hard-code a database schema. Filter values remain
+   caller-supplied iSearch/Zulia expressions; the command validates their nonempty,
+   field-qualified shape without attempting to replace the service query parser.
+5. Build the existing `SearchRequest`: `q` defaults to `*:*` when omitted, `qf` and `fq` retain
+   supplied order, `defaultOp` defaults to `AND`, `rows` defaults to 100, and date bounds are
+   passed in exact `yyyy-MM-dd` form. The configured `fl` list is not replaced by CLI field options.
+6. Submit the first GET search through `IISearchApiClient`, then use
+   `SearchResultPageSession` for unchanged-request cursor continuation.
+7. Retain either the requested bounded record count or every record through the service-reported
+   total in explicit `--all-results` mode, subject to the existing hard retention ceiling.
+8. Reuse the existing iSearch exporters and shared Carrot categorizer when requested, then emit a
+   concise safe summary with counts, completion state, and absolute artifact paths.
 
-1. Validate Spectre-bound option relationships, iSearch credentials, return-dataset configuration,
-   output paths, the mutually exclusive maximum-result/all-results selection, and
-   categorization/output dependencies locally.
-2. Call `GET /health`, then `GET /datasets`; stop before search if health is not positive or the
-   requested database was not discovered.
-3. Resolve the configured result dataset and submit the first bounded search with the requested
-   query, ordered fields, `defaultOp=AND`, and no more than 100 rows per service request.
-4. Use `SearchResultPageSession` to cursor-walk service pages until the accepted record count reaches
-   `--max-results`, or until the first response's stable `totalCount` is reached in
-   `--all-results` mode. Continue with the current cursor and unchanged request context only.
-5. If `--output` was supplied, save all accepted pages through `SearchResultsExporter` and the
-   existing `IExcelWorkbookWriter` contract.
-6. If `--categorize` was supplied, send only the accepted records through
-   `ISearchResultsCategorizer` and the shared Carrot categorization path. If
-   `--categorized-output` was supplied, save the successful categorized batch through
-   `CategorizedISearchResultsExporter`.
-7. Emit a concise machine-readable-friendly summary containing the database, configured result
-   dataset, query outcome, loaded/total counts, whether the run was capped or complete, and saved
-   absolute paths. Do not print record payloads or credentials by default.
-
-The command class will remain a thin Spectre adapter. A dedicated iSearch command workflow will
-own orchestration and return a structured result so the command is testable without HTTP or file
-side effects. Reporting will remain separate from HTTP, categorization, and workbook persistence.
-This preserves the existing dependency direction: command settings and CLI reporting depend on the
-workflow contract; the workflow depends on iSearch, Carrot, configuration, and reporting
-abstractions; the existing interactive UI continues to depend on the same feature services.
+The command must remain prompt-free. Interactive iSearch continues to own the guided builder,
+pretty JSON review, typed filter help, and menu editing. The named command accepts the resulting
+logical controls explicitly and relies on the shared API client for transport encoding.
 
 ## 4. Scope
 
-- Add the named `isearch` command and generated Spectre help metadata.
-- Add explicit settings for database, configured result dataset, query, bounded maximum-result or
-  explicit all-results cursor walking,
-  original Excel output, categorization, categorized Excel output, overwrite behavior, and the
-  existing Carrot endpoint/timeout needed by the categorization path.
-- Reuse the existing iSearch authentication from User Secrets, live health/database discovery,
-  configured return-field selection, cursor-aware page session, Carrot categorizer, and atomic
-  Excel exporters.
-- Add a noninteractive workflow that never prompts, never exposes credentials, and only performs a
-  complete cursor walk when the caller explicitly requests `--all-results`.
-- Define automation-oriented exit-code behavior and safe console diagnostics.
-- Update embedded iSearch/help topics, command reference material, README content, output guidance,
-  and Task Scheduler/troubleshooting examples for named iSearch automation.
-- Add focused Spectre command, workflow, output, and documentation/resource tests, then run the
-  normal repository verification.
+- Add the named `isearch` command, typed settings, registration, generated help, and examples.
+- Add command-line options for every supported advanced-query menu item:
+  `--query`, repeatable `--query-field`, repeatable `--filter-query`, `--default-op`, `--rows`,
+  `--updated-after`, and `--updated-before`.
+- Reuse the completed `SearchRequest` advanced properties and `IISearchApiClient` serialization;
+  do not duplicate or redesign those shared controls.
+- Add live field discovery/validation for `qf` and `fq` references, while leaving query-expression
+  semantics owned by iSearch/Zulia.
+- Add noninteractive health, dataset, query, cursor-walk, optional categorization, and Excel
+  orchestration with stable diagnostics and exit codes.
+- Update embedded help, CLI reference, README, scheduler, troubleshooting, and output guidance
+  with basic and advanced command examples.
+- Add focused command/settings/workflow/help tests and run normal repository verification.
 
 ## 5. Non-goals
 
-- Do not remove or redesign the interactive iSearch menu, result pager, field viewer, categorization
-  flow, or interactive export prompts.
-- Do not add a second iSearch HTTP client, another authentication mechanism, an API-key CLI option,
-  or a repository-local `secrets.json`.
-- Do not accept arbitrary result fields in this command; `--result-dataset` resolves fields from
-  the validated `iSearchReturnTypes.Results` configuration.
-- Do not add automatic field discovery, query construction, saved-search execution, fetch-by-ID,
-  or a new iSearch output format.
-- Do not add a prompt-based confirmation for overwriting files. Named commands must be explicit:
-  existing workbooks require `--overwrite`.
-- Do not add named-command-specific Carrot algorithm, language, template, or parameter-file
-  options in this phase unless implementation proves the existing categorization contract cannot
-  use its configured defaults. Such selection expansion is deferred rather than duplicated.
-- Do not claim a complete dataset walk when `--max-results` stops before iSearch reports completion.
-  `--all-results` is the explicit opt-in for a complete walk; it is not an implicit default.
+- Do not change the completed interactive advanced builder, basic query path, result pager, or
+  interactive export/categorization prompts.
+- Do not modify `SearchRequest` or `IISearchApiClient` advanced serialization unless implementation
+  exposes a regression; add regression coverage instead of reimplementing completed behavior.
+- Do not add `--sort`; the latest journal explicitly records that it is unsupported and removed.
+- Do not add arbitrary `--field` result selection. `--result-dataset` remains the only source of
+  configured `fl` fields.
+- Do not add an API-key option, checked-in secrets, a second HTTP client, POST transport migration,
+  saved searches, fetch-by-ID, query persistence, or a raw JSON editor.
+- Do not silently parse or rewrite arbitrary filter syntax. The command accepts complete `fq`
+  expressions and performs only safe boundary validation plus live field-name checking.
+- Do not implicitly fetch every result page. Complete walking requires explicit `--all-results`.
+- Do not introduce a new workbook format, JSON sidecar, or chunked categorization design.
 
 ## 6. Technical approach
 
 ### Command contract
 
-Add one leaf command rather than a nested `isearch search`/`isearch categorize` tree. The operation
-is one coherent pipeline whose optional categorization and exports depend on the same retained
-search session. Separate leaf commands would require a new persisted interchange contract and would
-duplicate selection, paging, and validation rules.
+Use a single `AsyncCommand<ISearchSettings>` registered as `isearch`. Repeated options must preserve
+CLI order so the resulting `qf` and `fq` arrays are deterministic.
 
-The planned settings are:
-
-| Option | Contract | Behavior |
+| Option | Contract | Shared request/behavior |
 | --- | --- | --- |
-| `--database <NAME>` | Required nonempty string | Must exactly match a live value from `GET /datasets`. |
-| `--result-dataset <NAME>` | Required nonempty string | Must exactly match a configured return-dataset child under `iSearchReturnTypes.Results`; matching is ordinal and case-sensitive unless the existing catalog contract establishes otherwise. |
-| `--query <TEXT>` | Required nonempty string | Trimmed free-text or Lucene query; sent unchanged after trimming. |
-| `--max-results <COUNT>` | Positive integer, default `100` when `--all-results` is absent | Bounds retained records. The command cursor-walks all needed service pages until this count is reached or iSearch is complete. |
-| `--all-results` | Boolean flag, mutually exclusive with `--max-results` | Uses the first response's `totalCount` as the target and cursor-walks every required page until all results are accepted or a hard storage/workbook limit is reached. |
-| `--output <PATH>` | Optional `.xlsx` file | Saves accepted original iSearch records with the existing generic `Results` worksheet format. |
-| `--categorize` | Boolean flag | Runs the loaded records through the shared Carrot categorization service. Invalid when no records were loaded. |
-| `--categorized-output <PATH>` | Optional `.xlsx` file | Requires `--categorize`; saves the categorized batch using the existing categorized worksheet format. |
-| `--endpoint <URI>` | Optional Carrot endpoint | Uses the existing noninteractive endpoint precedence and is required when no `CARROTCLI_ENDPOINT` fallback is available and categorization is requested. |
-| `--timeout-seconds <SECONDS>` | Optional positive integer | Applies the existing Carrot timeout behavior to categorization. iSearch timeout remains configuration-owned. |
-| `--overwrite` | Boolean flag | Allows either requested workbook to replace an existing file. Without it, the operation fails before writes. |
-| `--quiet` | Boolean flag | Suppresses the normal success summary while retaining warnings and errors, matching named process behavior. |
+| `--database <NAME>` | Required nonempty string | Live iSearch service dataset; must match `GET /datasets`. |
+| `--result-dataset <NAME>` | Required nonempty string | Configured `iSearchReturnTypes.Results` child; its ordered `DefaultFields` become `fl`. |
+| `--query <TEXT>` | Optional nonempty string after trimming; default `*:*` | Maps to `q`; blank input is rejected rather than treated as an omitted option. |
+| `--query-field <FIELD>` | Repeatable live field name | Maps, in occurrence order, to `qf`; omitted when not supplied. |
+| `--filter-query <EXPRESSION>` | Repeatable nonempty field-qualified iSearch/Zulia expression | Maps, in occurrence order, to `fq`; values are not re-authored by the CLI. |
+| `--default-op <AND\|OR>` | Optional enum-like value; default `AND` | Maps to `defaultOp`; reject undefined or case-ambiguous values according to repository conventions. |
+| `--rows <COUNT>` | Optional integer from 1 through 100; default 100 | Maps to `rows`, independent of retained `--max-results`. |
+| `--updated-after <YYYY-MM-DD>` | Optional exact ISO date | Maps to `updatedAfter`; validate parseability without converting the submitted text to a timestamp. |
+| `--updated-before <YYYY-MM-DD>` | Optional exact ISO date | Maps to `updatedBefore`; reject a lower bound after the upper bound. |
+| `--max-results <COUNT>` | Positive retained-record bound, default 100 when all-results is absent | Stops after the accepted prefix reaches the bound; it does not change the service page size. |
+| `--all-results` | Boolean flag, mutually exclusive with explicit `--max-results` | Uses the first response's stable `totalCount` and walks every required cursor page. |
+| `--output <PATH>` | Optional existing-parent `.xlsx` path | Saves accepted original records through `SearchResultsExporter`. |
+| `--categorize` | Boolean flag | Categorizes accepted records through `ISearchResultsCategorizer`. |
+| `--categorized-output <PATH>` | Optional existing-parent `.xlsx` path | Requires `--categorize`; saves through `CategorizedISearchResultsExporter`. |
+| `--endpoint <URI>` | Optional Carrot endpoint | Uses existing explicit-option/environment precedence when categorization is requested. |
+| `--timeout-seconds <SECONDS>` | Optional positive integer | Reuses existing Carrot timeout resolution for categorization. |
+| `--overwrite` | Boolean flag | Required to replace an existing requested workbook. |
+| `--quiet` | Boolean flag | Suppresses normal success summary but not warnings/errors. |
 
-The implementation must verify whether `--endpoint` and `--timeout-seconds` can reuse
-`EndpointSettings`/`RunSettingsResolver` without making unrelated settings mandatory. If a small
-shared resolver extraction is needed, preserve the existing `CARROTCLI_ENDPOINT` precedence,
-positive timeout validation, and configured Carrot clustering defaults for current commands.
+`--query-field` and `--filter-query` are the command-line counterparts of the interactive
+**Select Query Fields** and **Add Filter** actions. A filter example such as
+`--filter-query 'fundingCategory:"Research Project Grants"'` is already a complete `fq` value;
+numeric, Boolean, phrase, and date/range syntax remains governed by the live iSearch/Zulia contract.
+The command must not offer a misleading type-specific prompt or invent a second filter language.
 
-`--max-results` is deliberately record-based for bounded automation. The service still returns
-complete pages, so the workflow must preserve no more than the requested number of records in the
-session used for Excel output and categorization. When the bound falls inside a service page, the
-workflow must retain the prefix needed to honor the exact record limit while preserving the page
-cursor and provenance. A default of 100 preserves a safe one-page invocation; callers can choose a
-larger explicit bound for a controlled partial walk.
+The existing interactive request contract is authoritative for JSON names and omission rules:
+`dataset`, `q`, optional `qf`, optional `fq`, `fl`, `rows`, `defaultOp`, optional `updatedBefore`,
+and optional `updatedAfter`. The named command should construct the same `SearchRequest` object and
+let the existing client encode each complete query-string value. Cursor is transport state and is
+never a user option.
 
-`--all-results` is the explicit complete-walk mode. The first validated search response supplies
-`totalCount`; the workflow sets that value as the target, then follows the cursor from each accepted
-page and repeats the original database, query, fields, operator, and row limit until the loaded
-record count equals `totalCount`. It must stop successfully for zero results, reject an empty or
-unchanged cursor before the target is reached, reject a changing total, and honor the configured
-authenticated request interval. This removes the need for the operator to guess an arbitrary
-maximum-result value while still making the potentially expensive behavior visible in the command
-line.
+### Validation and live field discovery
 
-The all-results mode is bounded by a system safety ceiling rather than a caller-selected result
-value. The existing session/workbook capacity of 1,048,575 data rows is the minimum hard guard for
-Excel-backed retention. If iSearch reports more results than the supported retention or a Carrot
-categorization request can safely represent, the workflow must fail clearly before claiming or
-writing a complete artifact; it must not silently truncate an all-results run. A separate future
-chunked-categorization design may relax the Carrot-side limit.
+Use Spectre settings validation for required values, scalar ranges, date syntax, option conflicts,
+and categorization/output relationships. Use the workflow boundary for configuration and live-state
+validation. No iSearch, Carrot, or workbook side effect may occur when local validation fails.
 
-### Authentication and iSearch safety
+When qf or fq values are present, discover fields only after health and database validation. Match
+query-field names exactly against the returned nonempty `SearchField.Name` values. For each filter,
+validate that its leading field identifier is present in the live schema and that the expression is
+nonempty; preserve the full expression after validation. Do not hard-code fiscal-year, category, or
+other field names. If a filter cannot be safely identified as field-qualified, return a clear local
+validation failure rather than guessing.
 
-Continue the existing `Program` configuration path: `Host.CreateApplicationBuilder(args)` loads
-the project User Secrets through `builder.Configuration.AddUserSecrets<Program>(optional: true)`,
-and `ISearchOptions` receives the `iSearch` section. The command must invoke
-`ISearchOptionsValidator` before any iSearch request. The existing API client remains responsible
-for rejecting a missing key before every GET, sending the key only in the `apiKey` cookie, adding
-the monitored `From` header, refusing redirects, honoring the configured one-second authenticated
-pace, and sanitizing response failures.
+The command may use `--query "*:*"` explicitly, or omit `--query` to obtain the same match-all
+default used by the interactive builder. A supplied `--query` is trimmed once and then preserved.
+Dates remain strings in the request so the API receives the documented calendar representation.
 
-The workflow must call health before database discovery and database discovery before search. It
-must validate the requested database against the live response rather than trusting the command
-argument or hard-coding a service database. It must use the configured result dataset's fields and
-the service-owned response envelope (`cursor`, `returnedCount`, `totalCount`, `results`) without
-inventing per-database record DTOs.
+### Paging, retention, and completion
 
-### Paging and partial results
+Create `SearchResultPageSession` from the first successful response. Every continuation must use
+the session's unchanged `SearchRequest` and add only the current service cursor. In bounded mode,
+retain no more than `--max-results`; if the bound falls inside a service page, retain the accepted
+prefix without requesting another page. Report useful bounded data as partial when more service
+pages remain. In all-results mode, continue until the initial `totalCount` is accepted.
 
-Use the existing first-page `SearchAsync` operation to create `SearchResultPageSession`. In bounded
-mode, call `FetchNextAsync` repeatedly while the retained record count is below `--max-results` and
-`CanFetchNextPage` is true. In all-results mode, continue while the session has not reached the
-first response's `totalCount` and a valid cursor remains. Each continuation must use the session's
-current cursor and unchanged `SearchRequest`; the workflow must not issue a fresh first-page search
-inside the loop. Stop successfully when the requested bound or service total is reached.
+Honor the session's existing checks for changing totals, empty/unchanged cursors, invalid page
+metadata, cancellation, and the 1,048,575-row Excel-safe ceiling. An all-results run that cannot
+reach the stable total is a failure and must not be labeled complete. The selected `--rows` value
+controls service page size only; it must not weaken retention or completion guards.
 
-Because iSearch continuation is page-based, a response can contain more records than remain in the
-requested bound. Extend the session or add a bounded retained-result projection so the workflow can
-accept only the required prefix for export and categorization while retaining the service cursor and
-page number needed for accurate provenance. The projection must keep response counts internally
-consistent, preserve service order and duplicates, and distinguish a caller-imposed cap from a
-service-complete walk. Do not issue another cursor request after the cap is reached.
+### Categorization and output
 
-If the maximum-result bound is reached while `CanFetchNextPage` remains true, preserve the accepted
-prefix and return a structured partial result. The command may still save those accepted pages and
-categorize those accepted records, but it must return `ExitCodes.PartialSuccess` unless a later
-output or categorization failure has a more specific failure code. In all-results mode, reaching a
-hard retention ceiling, an invalid continuation, an unchanged/empty cursor before `totalCount`, or a
-changing total is a failure rather than a successful partial walk; the command must not write an
-artifact labeled complete. In either mode, preserve accepted state and sanitized diagnostics when a
-later request fails.
+Run categorization only over accepted records already retained in the session. Reuse the completed
+adapter that submits exactly `nihApplId`, `title`, `abstract`, and `specificAims`, including its
+normalization of numeric/null/missing values. Resolve the Carrot endpoint and timeout through the
+existing settings boundary and preserve configured clustering defaults.
 
-### Categorization and Excel persistence
-
-Reuse `ISearchResultsCategorizer` so the named path sends the same four source fields as the
-interactive path: `nihApplId`, `title`, `abstract`, and `specificAims`. It must not fetch another
-iSearch page during categorization. The Carrot endpoint is normalized through the existing
-`EndpointResolver`/`RunSettingsResolver` boundary, and categorization keeps the current list-first
-validation and configured default clustering selection.
-
-Reuse `SearchResultsExporter` and `CategorizedISearchResultsExporter`, not a command-specific
-writer. Normalize each supplied path through `ExcelOutputPathResolver`, require an existing parent
-directory and `.xlsx` extension, reject collisions between original and categorized destinations,
-and pass the caller's overwrite policy to the existing atomic writer. Original output contains all
-accepted pages in service order. Categorized output retains the original four source fields and
-category memberships, including an unassigned row when Carrot returns no membership.
+Resolve both workbook paths before network work, require `.xlsx` and existing parent directories,
+reject collisions, and pass `--overwrite` to the existing atomic writer. Write original output in
+service order and categorized output in the existing categorized worksheet shape. Do not write an
+artifact after a failed prerequisite or claim that a bounded artifact is complete.
 
 ### Exit codes and diagnostics
 
-Preserve existing meanings for `0`, `1`, `2`, `4`, `5`, `6`, and `130`. Add dedicated constants in
-`Processing/ExitCodes.cs` only if the existing codes cannot distinguish the new stages; the intended
-mapping is:
+Preserve existing codes where possible: `0` success, `1` local validation/configuration failure,
+`2` useful bounded partial completion, `4` Carrot endpoint/list failure, `5` Carrot categorization
+failure, `6` workbook failure, and `130` cancellation. Add a dedicated iSearch failure code only if
+the existing code set cannot distinguish health/discovery/search/cursor failures.
 
-- `0`: search and every requested optional operation completed successfully.
-- `1`: command syntax, settings relationship, credential, return-dataset, endpoint, or output-path
-  validation failed before the corresponding side effect.
-- `2`: bounded search completed with useful accepted data but did not load all service pages.
-- `4`: Carrot endpoint/list validation failed during categorization.
-- `5`: Carrot cluster request or response mapping failed during categorization.
-- `6`: original or categorized workbook persistence failed.
-- `7` (new, if needed): iSearch health, database discovery, search, or cursor-continuation failure.
-- `8` (new, if needed): an iSearch-to-Carrot categorization failure that cannot be mapped to the
-  existing list/cluster categories.
-- `130`: cooperative cancellation.
-
-Use the repository's `OperationResult` and `OperationMessage` conventions. Do not log query record
-payloads, API keys, cookies, authorization headers, or unbounded server response bodies. The normal
-summary should be stable plain text that is safe to redirect; `--quiet` should not suppress errors.
+Use `OperationResult` and `OperationMessage`. Diagnostics may include option names, bounded service
+messages, counts, and paths, but never API keys, cookies, authorization headers, record payloads,
+or unbounded response bodies. Escape literal query/filter text when rendering through Spectre.
 
 ### Alternatives considered
 
-- **Reuse the interactive flows directly:** rejected because those flows prompt and depend on
-  interactive console navigation. Reuse their domain services and exporters instead.
-- **Put all orchestration in `ISearchCommand.ExecuteAsync`:** rejected because it would create a
-  command with too many dependencies and mix parsing, paging, categorization, persistence, and
-  reporting. A focused workflow keeps the command thin and the behavior unit-testable.
-- **Persist JSON between separate search and categorize commands:** rejected because the request is
-  one automated search/categorization pipeline and the repository already has generic in-memory
-  contracts plus Excel persistence.
-- **Add arbitrary `--field` options:** rejected because configured result datasets already own field
-  order and the current iSearch design intentionally avoids hard-coded or unvalidated schemas.
-- **Implicitly fetch all pages without an explicit opt-in:** rejected because an accidental scheduled
-  invocation could trigger a large network walk and workbook/payload allocation. `--all-results`
-  makes the complete walk intentional, while the existing system retention ceiling remains enforced.
-- **Create another workbook writer:** rejected because the existing typed Excel framework already
-  provides formula-safe cell handling, overwrite policy, and atomic promotion.
+- **Reuse the interactive builder directly:** rejected because it prompts and owns terminal state;
+  reuse its shared request contract and API boundary instead.
+- **Add a second command for advanced searches:** rejected because basic and advanced requests have
+  one paging/export pipeline and do not need separate persisted contracts.
+- **Expose raw JSON:** rejected because it bypasses option validation and creates a second public
+  request language.
+- **Accept arbitrary result fields:** rejected because configured return datasets already own `fl`.
+- **Create a new iSearch serializer:** rejected because the completed client already safely encodes
+  qf, fq, dates, rows, operator, fields, and cursor continuation.
 
 ## 7. Implementation steps
 
-1. **Add the command settings and structural registration scaffold.**
-   - Add `src/Carrot.Cli/Cli/Settings/ISearchSettings.cs` with declarative
-     `[CommandOption]` metadata, descriptions, defaults, and validation for required values,
-     positive maximum-result limits, mutually exclusive `--all-results` behavior,
-     `--categorize`/`--categorized-output` relationships, and output-path distinctions.
-   - Add `src/Carrot.Cli/Cli/Commands/ISearchCommand.cs` as an `AsyncCommand<ISearchSettings>`
-     using the installed Spectre.Console.Cli 0.55 signatures and constructor injection.
-   - Add a workflow contract and result/request models under `src/Carrot.Cli/ISearch/`, preferably
-     `ISearchCommandWorkflow.cs`, `SearchCommandRequest.cs`, and `SearchCommandResult.cs`, so the
-     command adapter has one focused dependency and the result can describe accepted pages,
-     categorization, partial completion, and saved paths.
-   - Update `src/Carrot.Cli/Cli/CommandAppFactory.cs` to register `isearch`, add a description and
-     concrete examples, and validate examples in the repository's supported development/test path.
-   - Update `src/Carrot.Cli/Composition/ServiceRegistration.cs` for the command, workflow, and any
-     shared resolver registrations without changing the interactive service graph.
-   - Verify the scaffold compiles, production DI resolves the command, generated help shows all
-     options and examples, and missing required options prevent command execution.
+1. **Add the settings and command registration scaffold.**
+   - Add `src/Carrot.Cli/Cli/Settings/ISearchSettings.cs` with the complete option set above,
+     repeated ordered collections, defaults, descriptions, and deterministic relationship validation.
+   - Add `src/Carrot.Cli/Cli/Commands/ISearchCommand.cs` as a thin `AsyncCommand<ISearchSettings>`.
+   - Register the command and examples in `src/Carrot.Cli/Cli/CommandAppFactory.cs`; register its
+     dependencies in `src/Carrot.Cli/Composition/ServiceRegistration.cs` without disturbing the
+     interactive graph.
+   - Verify help shows every advanced option and no `sort` option, and invalid scalar combinations
+     stop before workflow execution.
 
-2. **Centralize noninteractive settings resolution without changing existing commands.**
-   - Extend `src/Carrot.Cli/Configuration/RunSettingsResolver.cs` only as needed to resolve the
-     Carrot endpoint and timeout for named iSearch categorization, preserving explicit-option then
-     `CARROTCLI_ENDPOINT` precedence and the current configured timeout/default clustering behavior.
-   - Reuse `ExcelOutputPathResolver` for both output options and add a focused collision check for
-     original and categorized workbook paths. The resolver must not create directories or overwrite
-     files during validation.
-   - Resolve `--result-dataset` through `SearchReturnTypeCatalog.GetConfiguration()` and retain the
-     selected definition's ordered `DefaultFields`; resolve `--database` only after authenticated
-     live dataset discovery.
-   - Keep validation side-effect-free. In particular, no health, datasets, search, Carrot, or
-     workbook operation may occur when command relationships or local paths are invalid.
-   - Extend `tests/Carrot.Cli.Tests/Configuration/RunSettingsResolverTests.cs` or add a focused
-     settings resolver test for endpoint fallback, timeout boundaries, path collisions, required
-     categorization output relationships, and case/whitespace handling.
+2. **Add the named request/workflow boundary.**
+   - Add focused request/result/workflow contracts under `src/Carrot.Cli/ISearch/`, for example
+     `SearchCommandRequest.cs`, `SearchCommandResult.cs`, and `ISearchCommandWorkflow.cs`.
+   - Carry q, ordered qf/fq, operator, rows, dates, selected database/return dataset, paging mode,
+     output settings, and resolved Carrot settings without duplicating `SearchRequest` semantics.
+   - Keep command parsing/reporting separate from iSearch HTTP, paging, categorization, and Excel.
 
-3. **Implement the noninteractive iSearch workflow.**
-   - Add the workflow implementation under `src/Carrot.Cli/ISearch/`, injecting only the role-specific
-     abstractions it needs: `IISearchApiClient`, `ISearchOptionsValidator`, `SearchReturnTypeCatalog`,
-     `ISearchResultsCategorizer`, the two existing Excel exporters, and the path/endpoint resolvers.
-   - Validate User Secrets and return-dataset configuration before `GetHealthAsync`.
-   - Call health, then datasets, and reject a database argument that is not present in the exact live
-     dataset collection. Do not issue search when health, discovery, or database validation fails.
-   - Build `SearchRequest` from the selected configured fields, trimmed query, `DefaultOp = "AND"`,
-     and a row size no greater than 100. Preserve the selected database and return-dataset label in
-     the result summary and export metadata where the existing contracts support it.
-   - Create `SearchResultPageSession` from the first response and walk only the caller's bounded
-     number of pages. Stop on complete cardinality, preserve accepted pages on later failure, and
-     distinguish complete success from useful partial completion.
-   - Save original output only after the search session has a valid accepted page. Run
-     `ISearchResultsCategorizer` only when `--categorize` is present and records are loaded. Save
-     categorized output only after categorization succeeds.
-   - Ensure cancellation propagates through iSearch pacing, continuation, Carrot calls, and Excel
-     writes; map it to `ExitCodes.Cancellation` without converting it into an ordinary failure.
-   - Add intent-focused comments and logical vertical spacing for validation gates, page-loop
-     limits, partial-state transitions, output ordering, and cancellation/cleanup paths.
-   - Verify with `tests/Carrot.Cli.Tests/ISearch/SearchCommandWorkflowTests.cs` (or the nearest
-     existing iSearch test file) using fake API, categorizer, exporter, and resolver boundaries.
-     Cover health gating, live database validation, configured result-field selection, one-page and
-     multi-page cursor walks, exact maximum-result retention, all-results completion, cap-induced
-     partial results, cursor/total inconsistencies, no-record categorization prevention, successful
-     categorization, output ordering, failure preservation, and cancellation.
+3. **Resolve settings and advanced field references.**
+   - Extend `RunSettingsResolver` only if needed for existing endpoint/timeout precedence; do not
+     make unrelated clustering options mandatory for a search-only invocation.
+   - Reuse `SearchReturnTypeCatalog` and `ExcelOutputPathResolver`; validate output collisions and
+     overwrite policy without creating directories or files.
+   - After health and live database validation, call `GetFieldsAsync` when qf/fq options require it,
+     then validate exact live field references and preserve filter expressions.
+   - Add focused resolver/workflow tests for defaults, date boundaries/order, repeated option order,
+     field failures, filter-shape failures, path collisions, and side-effect-free rejection.
 
-4. **Implement the thin command adapter and automation-safe reporting.**
-   - Complete `ISearchCommand.ExecuteAsync` so it translates settings to the workflow request,
-     writes safe operation messages, writes the normal summary unless `--quiet` is set, and maps
-     workflow status to the documented exit codes.
-   - Do not print generic record JSON by default; named command output is intended for automation and
-     file artifacts. Include database, result dataset, query completion, loaded/total counts,
-     complete/partial state, categorization state, and absolute artifact paths.
-   - Keep errors literal/escaped so query text, server messages, and paths cannot be interpreted as
-     Spectre markup. Never include the API key or cookie in diagnostics.
-   - Add all required XML documentation dividers, summaries, parameter/return/exception remarks,
-     related `<seealso>` references, and `#region implementation` blocks to new or materially
-     modified C# declarations. The command's XML documentation must accurately describe required
-     options, no-prompt behavior, success/failure outcomes, and cancellation.
-   - Verify with `tests/Carrot.Cli.Tests/Cli/ISearchCommandTests.cs` using
-     `CommandAppTester`: help short-circuiting, valid binding, required-option failures, invalid
-     option combinations, `--quiet`, exit-code mapping, no prompts, and safe output.
+4. **Implement search, paging, categorization, and export orchestration.**
+   - Call `ISearchOptionsValidator`, health, datasets, configured return-dataset resolution, and
+     search in that order; never search an undiscovered database.
+   - Build the completed `SearchRequest` with `*:*`/AND/100 defaults and all supplied advanced values;
+     let `IISearchApiClient` perform the established GET serialization and authentication safeguards.
+   - Use `SearchResultPageSession` for bounded or explicit all-results cursor walking, preserving
+     exact bounded prefixes and structured partial/failure state.
+   - Reuse both existing exporters and `ISearchResultsCategorizer`, forwarding cancellation through
+     every boundary.
+   - Cover health gating, live database/field validation, exact request construction, advanced-value
+     continuation preservation, rows/max-results interaction, all-results completion, partial walks,
+     no-record categorization, output ordering, failures, and cancellation with injected fakes.
 
-5. **Update internal help, README, and automation documentation with use cases.**
-   - Update `src/Carrot.Cli/Docs/isearch.md` with a dedicated **Command-line usage** section. Document
-     User Secrets prerequisites, the distinction between `--database` and `--result-dataset`, the
-     required query, mutually exclusive `--max-results` and `--all-results` cursor-walk behavior,
-     optional original/categorized workbook paths,
-     `--categorize`, `--endpoint`, `--overwrite`, no prompts, exit codes, and at least the two
-     search-only and search-plus-categorization PowerShell examples from this plan.
-   - Update `src/Carrot.Cli/Docs/commands-options.md` so the command surface lists `isearch`, every
-     option, validation relationship, output behavior, and a compact scheduler-friendly example.
-   - Update `src/Carrot.Cli/Docs/getting-started.md` to explain when to use interactive iSearch versus
-     named automation and link to the detailed iSearch topic.
-   - Update `src/Carrot.Cli/Docs/output-columns.md` and `docs/output-format.md` to state that named
-     iSearch output uses the existing `Results` worksheet, preserves accepted service-page order,
-     and uses the existing categorized worksheet for Carrot memberships.
-   - Update `docs/cli-reference.md`, `docs/task-scheduler.md`, `docs/troubleshooting.md`, and the
-     root `README.md` with the command surface, safe User Secrets guidance, bounded and all-results
-     cursor-walk behavior, common use cases, artifact paths, and the fact that named commands never
-     prompt.
-   - Preserve the embedded Markdown resource pattern in `Carrot.Cli.csproj`; the help topic already
-     exists in `HelpTopicCatalog`, so update its content rather than adding a duplicate topic.
-   - Add documentation/resource assertions to `tests/Carrot.Cli.Tests/Cli/HelpSystemTests.cs`,
-     `CommandRouteTests.cs`, and any output documentation tests needed to verify that command help,
-     `help isearch`, and redirected help expose the same examples and safety constraints. Do not put
-     real credentials or live secret values in documentation, fixtures, or output snapshots.
+5. **Complete the command adapter and safe reporting.**
+   - Translate settings to the workflow request, write structured messages, honor `--quiet`, and
+     return the documented exit code.
+   - Report database, return dataset, advanced-query completion, loaded/total counts, partial state,
+     categorization state, and absolute artifact paths without printing records or credentials.
+   - Add XML documentation, divider headers, implementation regions, intent comments, and spacing to
+     all new or materially modified C# declarations under repository conventions.
+   - Test with `CommandAppTester`: help short-circuiting, required options, repeated values, defaults,
+     dates, qf/fq validation, conflicts, no prompts, safe diagnostics, quiet output, exit codes,
+     and cancellation.
 
-6. **Verify the complete named-command feature.**
-   - Run focused settings, API/workflow, exporter, command-routing, help, and documentation tests
-     first.
-   - Run `dotnet build .\Carrot-CLI.slnx --no-restore`.
-   - Run `dotnet test .\Carrot-CLI.slnx --no-build --no-restore`.
-   - Run `dotnet format .\Carrot-CLI.slnx --verify-no-changes --no-restore` and `git diff --check`.
-   - Smoke-test generated help and expected failures without network access, for example:
-     `carrot-cli isearch --help`, a missing-required-option invocation, a conflicting output-option
-     invocation, and `carrot-cli help isearch`.
-   - If live iSearch and Carrot smoke tests are authorized and the required User Secrets and service
-     endpoints are available, run one harmless command with `--all-results` only when the returned
-     dataset is known to remain within the hard retention ceiling; otherwise use a small
-     `--max-results` value.
-     Confirm the key is absent from console/log output and that both workbook paths are reported.
-     Otherwise, report the live-service check as skipped; unit and fake-handler tests must not be
-     treated as live verification.
-   - Before implementation is declared complete, the coordinating agent must append one verified
-     entry covering every changed source, test, configuration, and code-related documentation file
-     to `C:\Source\Programs\Journal.md`. This pending plan is planning-only and does not itself
-     require a journal entry.
+6. **Update documentation and verify the feature.**
+   - Update `src/Carrot.Cli/Docs/isearch.md`, `src/Carrot.Cli/Docs/commands-options.md`,
+     `src/Carrot.Cli/Docs/getting-started.md`, `docs/cli-reference.md`, `docs/task-scheduler.md`,
+     `docs/troubleshooting.md`, `README.md`, `src/Carrot.Cli/Docs/output-columns.md`, and
+     `docs/output-format.md` with basic and advanced named-command examples.
+   - Document `--query-field`/`--filter-query` repetition and ordering, `--default-op`, `--rows`,
+     date formats, `--result-dataset`/`fl`, `--max-results` versus `--all-results`, no prompts, and
+     the absence of `--sort`. Keep secrets and live payloads out of resources and examples.
+   - Add help/resource assertions and run focused tests, `dotnet build .\Carrot-CLI.slnx --no-restore`,
+     `dotnet test .\Carrot-CLI.slnx --no-build --no-restore`,
+     `dotnet format .\Carrot-CLI.slnx --verify-no-changes --no-restore`, and `git diff --check`.
+   - Smoke-test root/leaf help and expected local validation failures without network access. Treat
+     live iSearch/Carrot verification as optional and credential-dependent.
 
 ## 8. Acceptance criteria
 
-- `carrot-cli --help` lists `isearch`, and `carrot-cli isearch --help` documents every supported
-  option and at least one valid example.
-- The command never prompts and does not call iSearch, Carrot, or write files when required options,
-  credential prerequisites, return-dataset configuration, endpoint settings, or output paths are
-  invalid.
-- The command validates the API key/contact configuration locally, calls authenticated health before
-  dataset discovery, and searches only a database returned by live `GET /datasets`.
-- `--result-dataset` resolves only configured `iSearchReturnTypes.Results` children, and its ordered
-  `DefaultFields` are the only configured record fields sent in `fl`.
-- The query is submitted with the selected live database, trimmed query text, `defaultOp=AND`, and
-  no more than 100 rows per request. Cursor continuation preserves the original search context,
-  walks every needed page, and retains no more than `--max-results` unless explicit `--all-results`
-  mode is active.
-- `--all-results` uses the service-reported `totalCount` and walks every cursor page until the loaded
-  count equals that total; it does not require an arbitrary user-supplied maximum-result value.
-- A complete walk returns success; a useful bounded partial walk is clearly reported and returns the
-  documented partial-success code; iSearch failures, Carrot failures, output failures, and
-  cancellation map to stable documented codes.
-- `--output` writes the accepted original records through the existing atomic Excel framework, and
-  `--categorize --categorized-output` sends accepted records through the existing Carrot path and
-  writes the existing categorized workbook shape. No JSON sidecar or alternate workbook format is
-  introduced.
-- Original and categorized output paths are validated before writes, existing files require
-  `--overwrite`, parent directories are not created implicitly, and path collisions are rejected.
-- Categorization sends exactly the existing four iSearch source fields, performs no additional iSearch
-  fetch, and retains source values and membership state in the categorized workbook.
-- Console output and diagnostics never expose the iSearch API key, cookie, authorization headers,
-  full payloads, or unbounded service error bodies. `--quiet` suppresses normal summaries only.
-- Interactive iSearch behavior remains available and unchanged for existing users.
-- New and materially modified C# code follows the repository's XML documentation, divider, naming,
-  implementation-region, intent-comment, and spacing conventions. Focused tests, full build/test,
-  format verification, whitespace checks, and applicable help/resource checks pass.
-- The internal help files, README, CLI reference, Task Scheduler guidance, troubleshooting guidance,
-  and output documentation contain usable search-only and search-plus-categorization examples with
-  placeholder paths and no real secrets.
+- `carrot-cli isearch --help` lists every supported advanced option, repeated-option behavior, and a
+  valid advanced example; it does not list `--sort`.
+- The command never prompts and performs no network, Carrot, or file side effect when local options,
+  credentials, configured return dataset, dates, field references, endpoint, or output paths fail.
+- Omitted `--query`, `--default-op`, and `--rows` produce `q=*:*`, `defaultOp=AND`, and `rows=100`;
+  explicit values are trimmed/validated according to the contract.
+- Repeated `--query-field` and `--filter-query` options preserve occurrence order and map to qf/fq.
+  qf names and filter-leading field names are validated against live `GET /fields/{database}` data.
+- `--updated-after` and `--updated-before` accept exact `yyyy-MM-dd` values, reject malformed or
+  reversed ranges, and serialize unchanged; filter expression syntax is not silently rewritten.
+- `--result-dataset` resolves configured ordered `DefaultFields` as the only `fl` values. Advanced
+  values remain unchanged in every cursor continuation request.
+- The command uses authenticated health, live database discovery, the existing GET serializer, and
+  the existing one-second pacing/credential protections; no credential appears in URI or diagnostics.
+- Bounded mode retains no more than `--max-results` records and reports a useful incomplete walk as
+  partial. Explicit `--all-results` reaches the stable service total or fails without claiming
+  completion, subject to the existing retention ceiling.
+- Original and categorized workbooks use the existing atomic exporters, preserve service order and
+  categorized membership semantics, require `--overwrite` for replacement, and reject path collisions.
+- Categorization sends only the existing four iSearch source fields and performs no additional fetch.
+- Stable exit codes, quiet behavior, cancellation, bounded diagnostics, interactive compatibility,
+  focused tests, build, test, format, whitespace, and help/resource checks pass.
 
 ## 9. Risks and assumptions
 
-- The requested “database” means the live iSearch dataset selected from `GET /datasets`; the
-  requested “dataset result” means the configured return-dataset name under
-  `iSearchReturnTypes.Results`. The command contract keeps these names separate to avoid sending a
-  configuration label as the service database.
-- The plan assumes the existing User Secrets values are available through the current project
-  `UserSecretsId` and `Program` configuration pipeline. The repository must not gain a checked-in
-  secret file or credential-bearing example.
-- `--max-results` defaults to 100 records to keep a command safe when a scheduled invocation omits
-  an explicit larger bound. `--all-results` is the explicit alternative when the caller wants the
-  service total to control termination rather than guessing a value.
-- The current Carrot categorization adapter uses configured default clustering selections after
-  endpoint resolution. Exposing algorithm/language/template/parameter-file overrides is not required
-  by the current request and remains a follow-up unless the existing contract requires it for a
-  valid named invocation.
-- iSearch database contents, field names, and response records remain service-owned. The plan uses
-  live database discovery and configured field sets rather than hard-coding a database schema.
-- A successful health response does not guarantee the later dataset or search request will succeed;
-  each response remains independently validated and safely mapped.
-- A bounded walk can produce useful accepted data without a complete dataset. The implementation
-  must make that distinction explicit in both summary and exit code so downstream automation can
-  choose whether partial output is acceptable.
-- Live-service verification is optional and credential-dependent. Fake HTTP handlers and injected
-  fakes are the required deterministic verification path.
+- 'Database' means the live iSearch dataset; 'result dataset' means a configured
+  `iSearchReturnTypes.Results` child. They remain separate command options.
+- Live field metadata is authoritative. A syntactically field-qualified expression may still be
+  rejected by iSearch; the API client's bounded sanitized failure remains authoritative.
+- The command accepts complete fq expressions because duplicating the interactive type-aware
+  formatter would create a second query language. Documentation must provide safe examples and link
+  users to the iSearch/Zulia syntax guidance.
+- `rows` controls one service page while `max-results` controls retained records. A cap can fall in
+  the middle of a page and must be projected without another request.
+- User Secrets and live-service verification may be unavailable in CI; fake handlers and injected
+  boundaries are the deterministic required checks.
+- Existing Carrot defaults remain sufficient for named categorization. Algorithm/language/template/
+  parameter-file options remain outside this plan.
 
 ## 10. Deferred follow-up
 
-- Add resumable cursor checkpoints or restart support for long-running all-results walks.
-- Add named field discovery, field-qualified query assistance, arbitrary validated `--field` input,
-  saved-search execution, fetch-by-ID, or query-result formats other than the established Excel
-  framework.
-- Add named-command overrides for Carrot algorithm, language, template, and parameter files after
-  a separate contract decision.
-- Add resumable cursor checkpoints or persisted search sessions; the current command keeps state in
-  memory for one invocation only.
-- Add a machine-readable summary format such as JSON or CSV after a separate automation contract
-  specifies schema stability and secret/record redaction requirements.
+- Resumable cursor checkpoints, persisted search sessions, saved searches, fetch-by-ID, or a machine-
+  readable output schema.
+- Arbitrary configured result-field editing, query autocomplete, query-language linting, schema cache,
+  or a raw JSON editor.
+- A separate typed CLI filter language that reproduces the interactive field-type formatter.
+- Named Carrot algorithm/language/template/parameter overrides and chunked categorization.
+- POST transport migration or any reintroduction of the unsupported sort control.
 
-## 11. Skill usage
+## 11. Plan evidence and skill usage
 
-- `plan-software-changes`: used to ground the plan in existing repository symbols, define one
-  coherent implementation phase, identify non-goals, and make every implementation step and
-  acceptance criterion verifiable.
-- `spectre-console-cli`: used for the typed `AsyncCommand<TSettings>` shape, declarative options,
-  no-prompt validation, command registration, generated examples/help, cancellation, exit codes,
-  DI, and `CommandAppTester` coverage.
-- `isearch`: used for User Secrets authentication, cookie/header handling, health and dataset gates,
-  live field configuration, cursor continuation, one-second pacing, bounded traversal, and safe
-  response diagnostics.
-- `dotnet-architectural-principles`: used to keep the command adapter, workflow orchestration, HTTP
-  boundary, categorization boundary, and Excel persistence responsibilities separate and testable.
-- `dotnet-automated-testing`: used for the unit/integration split, fake HTTP and service boundaries,
-  command-parser tests, decision-table validation, page-limit boundaries, cancellation, and
-  end-to-end use-case coverage.
-- `verbose-code-documentation`: used to require complete XML documentation, separator headers,
-  implementation regions, related references, and documentation-pipeline verification for new or
-  materially modified C# members.
-- `csharp-comment-spacing`: used to require intent-focused comments and logical vertical spacing for
-  validation gates, cursor/page transitions, partial completion, cancellation, and output ordering.
+- `src/Carrot.Cli/Plans/(done) 15-Interactive-iSearch-Advanced-Query-Builder-Plan.md` is the source
+  for the completed q/qf/fq/fl/defaultOp/rows/date semantics, live-field guidance, and GET transport.
+- The 2026-09-11 journal entries confirm that the shared advanced request/API/interactive behavior,
+  tests, and documentation are implemented, and that sort was removed.
+- `plan-software-changes`: used to keep this as one repository-grounded implementation phase with
+  explicit scope, non-goals, steps, and observable acceptance criteria.
+- `spectre-console-cli`: used for typed settings, repeated options, validation lifecycle, DI,
+  generated help, cancellation, and `CommandAppTester` coverage.
+- `isearch`: used for live dataset/field discovery, authenticated GET constraints, q/qf/fq/fl/date
+  semantics, array encoding, paging, and service-owned filter syntax.
+- `dotnet-automated-testing`: used for parser, workflow, fake-handler, boundary, cancellation, and
+  end-to-end command coverage.
+- `verbose-code-documentation` and `csharp-comment-spacing`: applied to the new and materially
+  modified C# command, workflow, settings, reporting, paging, and test declarations.
+
+## 12. Implementation record
+
+- The named `isearch` command, advanced settings, workflow, bounded/all-results paging, live field
+  validation, optional categorization, Excel export, reporting, registration, tests, and documentation
+  updates are implemented in the repository.
+- Verification completed with focused tests, the full solution test suite, solution build, formatting
+  verification, generated leaf help, local option-conflict smoke testing, and whitespace validation.

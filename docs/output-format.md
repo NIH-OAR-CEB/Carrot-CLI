@@ -23,3 +23,8 @@ Named `preview` writes one complete indented UTF-8 request JSON artifact through
 The interactive **iSearch** results view also offers explicit Excel export. It writes one `Results` worksheet for the records successfully walked in the current query session, in service-page order. The first columns are `ResultPage` and zero-based `ResultOrdinal`, followed by configured fields and any additional object properties observed in the returned records. Duplicate records are preserved. Scalar or array root records are retained as JSON text in a `Value` column. The export does not fetch unvisited pages, writes no credentials, and shares the same path validation, overwrite confirmation, formula-safe text handling, and atomic persistence as processed-results export.
 
 After **Categorize iSearch Results** succeeds, **Save Categorized iSearch Results to Excel** creates a `Results` worksheet with `ResultPage`, `ResultOrdinal`, `nihApplId`, `title`, `abstract`, `specificAims`, `CategoryCount`, `CategoryPaths`, `CategoryScores`, and `CategoryMembershipsJson`. Rows are in loaded result order and expand one assigned record into one row per category membership; unassigned records retain one row with blank category fields.
+# Named iSearch output
+
+The prompt-free `isearch` command reuses the existing iSearch `Results` worksheet and categorized
+worksheet contracts. It writes only accepted records, in service order, and does not create JSON
+sidecars.

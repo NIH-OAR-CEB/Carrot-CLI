@@ -6,7 +6,7 @@ namespace Carrot.Cli.Cli.Settings;
 /// <summary>
 /// Defines noninteractive endpoint options for configuration inspection commands.
 /// </summary>
-internal sealed class EndpointSettings : CommandSettings
+internal class EndpointSettings : CommandSettings
 {
     #region implementation
 

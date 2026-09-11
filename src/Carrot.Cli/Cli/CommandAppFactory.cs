@@ -66,6 +66,9 @@ internal sealed class CommandAppFactory
             .WithDescription("Display curated Markdown help for an optional topic.");
         configuration.AddCommand<AboutCommand>("about")
             .WithDescription("Display application, compatibility, and notice information.");
+        configuration.AddCommand<ISearchCommand>("isearch")
+            .WithDescription("Search iSearch noninteractively with optional advanced query controls.")
+            .WithExample("isearch", "--database grants", "--result-dataset Grants", "--query *:*", "--filter-query fy:2024", "--max-results 100");
 
         #endregion
     }

@@ -7,6 +7,7 @@ carrot-cli
 carrot-cli process [options]
 carrot-cli preview [options]
 carrot-cli server-info [options]
+carrot-cli isearch [options]
 carrot-cli help [topic]
 carrot-cli about
 carrot-cli --version
@@ -32,10 +33,23 @@ Server information accepts `--endpoint` and `--timeout-seconds`, calls only `/li
 
 Named operational commands never prompt. Server information, named preview, and named process execution are active. Shared settings validation, clustering resolution, exact `/list` validation, Help, About, Version, interactive document processing, and interactive Server Information are active.
 
+## iSearch
+
+Named iSearch accepts `--database`, `--result-dataset`, `--query`, repeated `--query-field`, repeated
+`--filter-query`, `--default-op`, `--rows`, `--updated-after`, `--updated-before`, and either
+`--max-results` or `--all-results`. It also accepts `--output`, `--categorize`,
+`--categorized-output`, `--endpoint`, `--timeout-seconds`, `--overwrite`, and `--quiet`. The command
+never prompts. `--query-field` maps to qf and `--filter-query` maps to fq in occurrence order;
+configured return-dataset `DefaultFields` provide fl. q defaults to `*:*`, default-op to AND, and
+rows to 100. Field references are checked against live schema metadata. `--sort` is unsupported.
+All-results is explicit and cannot be combined with max-results. iSearch failures return `7`, useful
+bounded partial walks return `2`, and cancellation returns `130`.
+
 ## Examples
 
 ```text
 carrot-cli server-info --endpoint "http://localhost:8080/service"
+carrot-cli isearch --database grants --result-dataset Grants --query "*:*" --filter-query "fy:2024" --query-field title --max-results 100 --output "C:\Results\grants.xlsx" --overwrite
 carrot-cli preview --input "C:\Data\Documents.zip" --endpoint "http://localhost:8080/service" --output "C:\Results\documents.request.json"
 carrot-cli process --input "C:\Data\Documents" --recursive --endpoint "http://localhost:8080/service" --output "C:\Results" --log-file "C:\Logs\carrot-process.log"
 carrot-cli process --input "C:\Data\Documents" --endpoint "http://localhost:8080/service" --template frontend-default --no-json-artifacts --quiet

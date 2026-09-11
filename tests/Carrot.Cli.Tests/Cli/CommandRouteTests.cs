@@ -121,6 +121,7 @@ public sealed class CommandRouteTests
         Assert.Contains("process", result.Output, StringComparison.Ordinal);
         Assert.Contains("preview", result.Output, StringComparison.Ordinal);
         Assert.Contains("server-info", result.Output, StringComparison.Ordinal);
+        Assert.Contains("isearch", result.Output, StringComparison.Ordinal);
         Assert.Contains("help", result.Output, StringComparison.Ordinal);
         Assert.Contains("about", result.Output, StringComparison.Ordinal);
 
@@ -155,6 +156,38 @@ public sealed class CommandRouteTests
 
     /**************************************************************/
     /// <summary>
+    /// Verifies the named iSearch leaf help exposes advanced query controls without executing a search.
+    /// </summary>
+    [Fact]
+    public async Task ISearch_Help_ExposesAdvancedOptions()
+    {
+        #region implementation
+
+        // Arrange
+        var tester = createCommandTester();
+        tester.Configure(configuration => configuration.AddCommand<ISearchCommand>("isearch"));
+
+        // Act
+        var result = await tester.RunAsync(
+            ["isearch", "--help"],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("--query", result.Output, StringComparison.Ordinal);
+        Assert.Contains("--query-field", result.Output, StringComparison.Ordinal);
+        Assert.Contains("--filter-query", result.Output, StringComparison.Ordinal);
+        Assert.Contains("--default-op", result.Output, StringComparison.Ordinal);
+        Assert.Contains("--rows", result.Output, StringComparison.Ordinal);
+        Assert.Contains("--updated-after", result.Output, StringComparison.Ordinal);
+        Assert.Contains("--updated-before", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("--sort", result.Output, StringComparison.Ordinal);
+
+        #endregion
+    }
+
+    /**************************************************************/
+    /// <summary>
     /// Verifies the production service collection can construct the complete interactive UI graph.
     /// </summary>
     [Fact]
@@ -177,6 +210,8 @@ public sealed class CommandRouteTests
         Assert.NotNull(provider.GetRequiredService<ServerInfoCommand>());
         Assert.NotNull(provider.GetRequiredService<PreviewCommand>());
         Assert.NotNull(provider.GetRequiredService<ProcessCommand>());
+        Assert.NotNull(provider.GetRequiredService<ISearchCommand>());
+        Assert.NotNull(provider.GetRequiredService<ISearchCommandWorkflow>());
         Assert.NotNull(provider.GetRequiredService<IDocumentProcessingWorkflow>());
         Assert.NotNull(provider.GetRequiredService<ServerInformationFlow>());
         Assert.NotNull(provider.GetRequiredService<InteractivePreviewFlow>());

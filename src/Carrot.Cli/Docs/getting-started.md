@@ -15,6 +15,8 @@ The interactive **Preview Request** flow collects one input, endpoint, algorithm
 
 The optional **iSearch** workflow requires `iSearch:apiKey` and `iSearch:contactEmail` in User Secrets. It checks `/health`, discovers live databases, requires a configured return dataset under `iSearchReturnTypes.Results`, and submits selected-dataset queries with that group's ordered fields and a 100-record limit. **Build Advanced Query** uses live fields to guide `q`, `qf`, `fq`, and updated-date bounds, then displays a pretty JSON package for edit or confirmation before submission. Results include common total/current/result-page cardinality and retain the iSearch cursor. **Next Display Page** moves through terminal lines locally; **Fetch Next Result Page** fetches one additional data chunk; **Fetch All Pages**, immediately below it, walks every remaining chunk sequentially while the Search Summary updates Data Page and actual loaded-record percentage. **Save iSearch Results to Excel** combines every page fetched during the current query visit and does not fetch more data. Continuations respect the documented authenticated one-second throttle. The key is sent only as a cookie, and saving is explicit, local, atomic, and creates no sidecar or log; see [iSearch](isearch.md).
 
+For unattended use, the named `isearch` command accepts the same advanced controls without prompts. Use `--query`, repeat `--query-field` and `--filter-query`, `--default-op`, `--rows`, `--updated-after`, and `--updated-before`; `--result-dataset` selects the configured `fl` fields. Use `--max-results` for a bounded walk or explicit `--all-results` for complete paging. See [iSearch command-line usage](isearch.md#command-line-usage) for examples and exit codes.
+
 For noninteractive syntax, run:
 
 ```text
@@ -24,7 +26,7 @@ carrot-cli help commands-options
 
 Long help topics use terminal-sized pages. Select **Next Page** or **Previous Page** to navigate, and select **Close Help** or press **Escape** to return. Redirected help output is emitted as one complete document without prompts.
 
-Noninteractive processing remains reserved for a later implementation milestone.
+The named `isearch` operation is noninteractive and suitable for scripts or scheduled tasks. Other noninteractive processing operations remain reserved for later implementation milestones.
 
 ## Command-line usage
 
